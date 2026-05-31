@@ -1,7 +1,7 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  RefreshControl, StatusBar, SafeAreaView, Animated,
+  RefreshControl, StatusBar, SafeAreaView,
 } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { initializeDatabase } from '@/src/db/schema';
@@ -9,6 +9,8 @@ import { getProfile, type ProfileWithRpg } from '@/src/db/profile';
 import { getDailySummary, type DailySummary } from '@/src/db/meals';
 import { getLatestWeight } from '@/src/db/weights';
 import { getDailyQuests, checkAndUpdateQuests, type Quest } from '@/src/db/quests';
+import CGHero from '@/src/components/CGHero';
+import { getEquippedStats, type EquippedStats } from '@/src/db/equipment';
 
 const TODAY = new Date().toISOString().split('T')[0];
 
@@ -17,32 +19,24 @@ export default function HomeScreen() {
   const [summary, setSummary] = useState<DailySummary | null>(null);
   const [latestWeight, setLatestWeight] = useState<number | null>(null);
   const [quests, setQuests] = useState<Quest[]>([]);
+  const [equippedStats, setEquippedStats] = useState<EquippedStats | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [dbReady, setDbReady] = useState(false);
 
-  const floatAnim = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(floatAnim, { toValue: -8, duration: 1500, useNativeDriver: true }),
-        Animated.timing(floatAnim, { toValue: 0, duration: 1500, useNativeDriver: true }),
-      ])
-    ).start();
-  }, []);
-
   const load = useCallback(async () => {
     if (!dbReady) return;
-    const [p, s, w, q] = await Promise.all([
+    const [p, s, w, q, eq] = await Promise.all([
       getProfile(),
       getDailySummary(TODAY),
       getLatestWeight(),
       getDailyQuests(TODAY),
+      getEquippedStats(),
     ]);
     setProfile(p);
     setSummary(s);
     setLatestWeight(w?.weight_kg ?? null);
     setQuests(q);
+    setEquippedStats(eq);
 
     if (s && p) {
       await checkAndUpdateQuests(TODAY, {
@@ -76,8 +70,9 @@ export default function HomeScreen() {
   const calorieRemain = Math.max(calorieTarget - totalCalories, 0);
   const completedQuests = quests.filter(q => q.completed).length;
   const totalQuests = quests.filter(q => q.quest_type !== 'all_complete').length;
+  const level = profile?.level ?? 1;
 
-  const hpColor = calorieRatio > 0.95 ? '#ef4444' : calorieRatio > 0.7 ? '#f59e0b' : '#10b981';
+  const hpColor = calorieRatio > 0.95 ? '#E74C3C' : calorieRatio > 0.7 ? '#F39C12' : '#2ECC71';
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -86,150 +81,158 @@ export default function HomeScreen() {
         style={styles.scroll}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#7c3aed" />}
       >
-        {/* ヘッダー */}
+        {/* ドット絵風ヘッダー */}
         <View style={styles.header}>
-          <View>
-            <Text style={styles.appName}>カロクエ</Text>
-            <Text style={styles.dateText}>{TODAY.replace(/-/g, '/')}</Text>
-          </View>
-          <View style={styles.expBadge}>
-            <Text style={styles.expBadgeText}>EXP {profile?.exp_in_level ?? 0}/{profile?.exp_for_next ?? 200}</Text>
+          <View style={styles.pixelBorder}>
+            <Text style={styles.appName}>KAROQUEST</Text>
+            <Text style={styles.dateText}>{TODAY.replace(/-/g, '.')}</Text>
           </View>
         </View>
 
-        {/* キャラクター＆ステータス */}
-        <View style={styles.heroSection}>
-          <Animated.View style={[styles.characterWrap, { transform: [{ translateY: floatAnim }] }]}>
-            <Text style={styles.characterEmoji}>⚔️</Text>
-          </Animated.View>
-          <View style={styles.statusWrap}>
-            <View style={styles.levelRow}>
-              <View style={styles.levelBadge}>
-                <Text style={styles.levelBadgeText}>Lv.{profile?.level ?? 1}</Text>
-              </View>
-              <Text style={styles.titleText}>{profile?.title ?? '見習い冒険者'}</Text>
-            </View>
-            <View style={styles.expBarBg}>
-              <View style={[styles.expBarFill, { width: `${profile?.exp_progress_pct ?? 0}%` as any }]} />
-            </View>
-
-            {/* HP（カロリー残量） */}
-            <View style={styles.hpRow}>
-              <Text style={styles.hpLabel}>HP</Text>
-              <View style={styles.hpBarBg}>
-                <View style={[styles.hpBarFill, { width: `${calorieRatio * 100}%` as any, backgroundColor: hpColor }]} />
-              </View>
-              <Text style={styles.hpText}>{totalCalories}/{calorieTarget}</Text>
+        {/* キャラクターステータスパネル */}
+        <View style={styles.statusPanel}>
+          {/* ドット絵キャラクター */}
+          <View style={styles.characterArea}>
+            <CGHero level={level} size={96} animate equipped={equippedStats ?? undefined} />
+            <View style={styles.levelTag}>
+              <Text style={styles.levelTagText}>LV{level}</Text>
             </View>
           </View>
-        </View>
 
-        {/* カロリー詳細カード */}
-        <View style={styles.calorieCard}>
-          <View style={styles.calorieRow}>
-            <View style={styles.calorieMain}>
-              <Text style={styles.calorieLabel}>今日のカロリー</Text>
-              <View style={styles.calorieValueRow}>
-                <Text style={styles.calorieNum}>{totalCalories}</Text>
-                <Text style={styles.calorieUnit}> kcal</Text>
+          {/* ステータス */}
+          <View style={styles.statsArea}>
+            <Text style={styles.heroName}>{profile?.title ?? '見習い冒険者'}</Text>
+
+            {/* EXPバー */}
+            <View style={styles.barRow}>
+              <Text style={styles.barLabel}>EXP</Text>
+              <View style={styles.pixelBarBg}>
+                <View style={[styles.pixelBarFill, styles.expFill, {
+                  width: `${profile?.exp_progress_pct ?? 0}%` as any
+                }]} />
               </View>
+              <Text style={styles.barValue}>{profile?.exp_in_level ?? 0}</Text>
             </View>
-            <View style={styles.calorieRemain}>
-              <Text style={styles.remainLabel}>残り</Text>
-              <Text style={[styles.remainNum, calorieRemain === 0 && styles.remainOver]}>
-                {calorieRemain === 0 ? 'OVER' : calorieRemain}
+
+            {/* HPバー（カロリー残量） */}
+            <View style={styles.barRow}>
+              <Text style={[styles.barLabel, { color: hpColor }]}>HP</Text>
+              <View style={styles.pixelBarBg}>
+                <View style={[styles.pixelBarFill, {
+                  width: `${(1 - calorieRatio) * 100}%` as any,
+                  backgroundColor: hpColor,
+                }]} />
+              </View>
+              <Text style={styles.barValue}>{calorieRemain}</Text>
+            </View>
+
+            {/* クエスト進捗 */}
+            <View style={styles.questMini}>
+              <Text style={styles.questMiniText}>
+                📜 クエスト {completedQuests}/{totalQuests}
               </Text>
-              {calorieRemain > 0 && <Text style={styles.remainUnit}>kcal</Text>}
+              <View style={styles.questDots}>
+                {Array.from({ length: totalQuests }).map((_, i) => (
+                  <View key={i} style={[styles.questDot, i < completedQuests && styles.questDotDone]} />
+                ))}
+              </View>
+            </View>
+          </View>
+        </View>
+
+        {/* カロリーパネル（ドット絵ウィンドウ風） */}
+        <View style={styles.pixelWindow}>
+          <View style={styles.pixelWindowTitle}>
+            <Text style={styles.pixelWindowTitleText}>▶ 今日のカロリー</Text>
+          </View>
+          <View style={styles.calorieRow}>
+            <View>
+              <Text style={styles.calorieBig}>{totalCalories}</Text>
+              <Text style={styles.calorieUnit}>kcal 消費</Text>
+            </View>
+            <View style={styles.calorieDiv} />
+            <View style={styles.calorieRight}>
+              <Text style={[styles.remainNum, calorieRemain === 0 && { color: '#E74C3C' }]}>
+                {calorieRemain === 0 ? 'OVER!' : calorieRemain}
+              </Text>
+              <Text style={styles.calorieUnit}>kcal 残り</Text>
             </View>
           </View>
           <View style={styles.pfcRow}>
-            <PFCItem label="P" value={summary?.total_protein_g ?? 0} color="#60a5fa" />
-            <PFCItem label="F" value={summary?.total_fat_g ?? 0} color="#fbbf24" />
-            <PFCItem label="C" value={summary?.total_carbs_g ?? 0} color="#34d399" />
+            <PixelPFC label="P" value={summary?.total_protein_g ?? 0} color="#60A5FA" />
+            <PixelPFC label="F" value={summary?.total_fat_g ?? 0} color="#FBBF24" />
+            <PixelPFC label="C" value={summary?.total_carbs_g ?? 0} color="#34D399" />
           </View>
         </View>
 
-        {/* デイリークエスト */}
-        <View style={styles.questCard}>
-          <View style={styles.questHeader}>
-            <Text style={styles.questTitle}>📜 今日のクエスト</Text>
-            <Text style={styles.questProgress}>{completedQuests}/{totalQuests}</Text>
+        {/* クエストパネル */}
+        <View style={styles.pixelWindow}>
+          <View style={styles.pixelWindowTitle}>
+            <Text style={styles.pixelWindowTitleText}>▶ デイリークエスト</Text>
+            <Text style={styles.questCount}>{completedQuests}/{totalQuests}</Text>
           </View>
           {quests.filter(q => q.quest_type !== 'all_complete').map(quest => (
-            <View key={quest.id} style={[styles.questItem, quest.completed && styles.questItemDone]}>
+            <View key={quest.id} style={[styles.questRow, quest.completed && styles.questRowDone]}>
               <Text style={styles.questIcon}>{quest.icon}</Text>
-              <View style={styles.questInfo}>
-                <Text style={[styles.questLabel, quest.completed && styles.questLabelDone]}>{quest.label}</Text>
-                <Text style={styles.questDesc}>{quest.description}</Text>
-              </View>
-              <View style={styles.questExpWrap}>
-                {quest.completed
-                  ? <Text style={styles.questDoneCheck}>✓</Text>
-                  : <Text style={styles.questExp}>+{quest.exp_reward}</Text>
-                }
-              </View>
+              <Text style={[styles.questLabel, quest.completed && styles.questLabelDone]}>
+                {quest.label}
+              </Text>
+              {quest.completed
+                ? <Text style={styles.questCheck}>✓</Text>
+                : <Text style={styles.questExp}>+{quest.exp_reward}</Text>
+              }
             </View>
           ))}
-          {/* 全完了ボーナス */}
           {quests.find(q => q.quest_type === 'all_complete') && (
             <View style={[
-              styles.questAllComplete,
-              quests.find(q => q.quest_type === 'all_complete')?.completed && styles.questAllCompleteDone,
+              styles.allComplete,
+              quests.find(q => q.quest_type === 'all_complete')?.completed && styles.allCompleteDone,
             ]}>
-              <Text style={styles.questAllText}>
+              <Text style={styles.allCompleteText}>
                 {quests.find(q => q.quest_type === 'all_complete')?.completed
-                  ? '👑 今日の冒険完了！'
-                  : '👑 全クエスト達成で +200 EXP ボーナス'}
+                  ? '★ ALL CLEAR! +200 EXP ★'
+                  : '全クリボーナス +200 EXP'}
               </Text>
             </View>
           )}
         </View>
 
-        {/* 撮影ボタン */}
-        <TouchableOpacity style={styles.shootButton} onPress={() => router.push('/camera' as any)}>
-          <Text style={styles.shootIcon}>📸</Text>
-          <View>
-            <Text style={styles.shootText}>食事を記録する</Text>
-            <Text style={styles.shootSub}>写真1枚でカロリー自動計算 → EXP獲得</Text>
+        {/* 撮影ボタン（ドット絵ボタン風） */}
+        <TouchableOpacity style={styles.pixelButton} onPress={() => router.push('/camera' as any)}>
+          <View style={styles.pixelButtonInner}>
+            <Text style={styles.pixelButtonIcon}>📸</Text>
+            <View>
+              <Text style={styles.pixelButtonText}>FOOD SCAN</Text>
+              <Text style={styles.pixelButtonSub}>写真でカロリー自動計算 → EXP +10</Text>
+            </View>
           </View>
         </TouchableOpacity>
 
-        {/* 体重カード */}
-        <TouchableOpacity style={styles.weightCard} onPress={() => router.push('/weight' as any)}>
-          <View style={styles.weightLeft}>
-            <Text style={styles.weightEmoji}>⚖️</Text>
-            <View>
-              <Text style={styles.weightLabel}>今日の体重</Text>
-              <Text style={styles.weightValue}>
-                {latestWeight != null ? `${latestWeight} kg` : '未記録 → タップして入力'}
-              </Text>
-            </View>
-          </View>
-          {latestWeight == null && (
-            <View style={styles.weightExpBadge}>
-              <Text style={styles.weightExpText}>+30 EXP</Text>
-            </View>
-          )}
-        </TouchableOpacity>
+        {/* 体重・バトル */}
+        <View style={styles.bottomRow}>
+          <TouchableOpacity style={styles.pixelCard} onPress={() => router.push('/weight' as any)}>
+            <Text style={styles.pixelCardIcon}>⚖️</Text>
+            <Text style={styles.pixelCardLabel}>体重</Text>
+            <Text style={styles.pixelCardValue}>
+              {latestWeight != null ? `${latestWeight}kg` : '未記録'}
+            </Text>
+            {latestWeight == null && <Text style={styles.pixelCardExp}>+30</Text>}
+          </TouchableOpacity>
 
-        {/* バトル */}
-        <TouchableOpacity style={styles.battleCard} onPress={() => router.push('/battle' as any)}>
-          <View style={styles.battleLeft}>
-            <Text style={styles.battleEmoji}>⚔️</Text>
-            <View>
-              <Text style={styles.battleTitle}>今週のバトル</Text>
-              <Text style={styles.battleSub}>ボスを倒して大量EXP獲得</Text>
-            </View>
-          </View>
-          <Text style={styles.battleArrow}>›</Text>
-        </TouchableOpacity>
+          <TouchableOpacity style={styles.pixelCard} onPress={() => router.push('/battle' as any)}>
+            <Text style={styles.pixelCardIcon}>⚔️</Text>
+            <Text style={styles.pixelCardLabel}>バトル</Text>
+            <Text style={styles.pixelCardValue}>第1章</Text>
+            <Text style={styles.pixelCardSub}>ボス出現中</Text>
+          </TouchableOpacity>
+        </View>
 
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-function PFCItem({ label, value, color }: { label: string; value: number; color: string }) {
+function PixelPFC({ label, value, color }: { label: string; value: number; color: string }) {
   return (
     <View style={styles.pfcItem}>
       <Text style={[styles.pfcLabel, { color }]}>{label}</Text>
@@ -238,84 +241,158 @@ function PFCItem({ label, value, color }: { label: string; value: number; color:
   );
 }
 
+const PIXEL_BORDER = {
+  borderWidth: 2,
+  borderColor: '#2D2D5E',
+  borderStyle: 'solid' as const,
+};
+
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#0D0D1A' },
+  safe: { flex: 1, backgroundColor: '#0A0A18' },
   scroll: { flex: 1 },
 
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 16, paddingBottom: 8 },
-  appName: { fontSize: 22, fontWeight: '800', color: '#7c3aed', letterSpacing: -0.5 },
-  dateText: { fontSize: 12, color: '#555', marginTop: 2 },
-  expBadge: { backgroundColor: '#1a1a3e', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: '#2d2d5e' },
-  expBadgeText: { fontSize: 11, color: '#a78bfa', fontWeight: '700' },
+  // ヘッダー
+  header: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 8 },
+  pixelBorder: { borderBottomWidth: 2, borderBottomColor: '#7c3aed', paddingBottom: 8 },
+  appName: { fontSize: 20, fontWeight: '900', color: '#A78BFA', letterSpacing: 4, fontFamily: 'monospace' },
+  dateText: { fontSize: 11, color: '#444', fontFamily: 'monospace', marginTop: 2 },
 
-  heroSection: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginBottom: 16, backgroundColor: '#12122A', borderRadius: 20, padding: 16, borderWidth: 1, borderColor: '#1e1e4e' },
-  characterWrap: { width: 80, height: 80, alignItems: 'center', justifyContent: 'center' },
-  characterEmoji: { fontSize: 52 },
-  statusWrap: { flex: 1, marginLeft: 16 },
-  levelRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 8 },
-  levelBadge: { backgroundColor: '#7c3aed', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 3 },
-  levelBadgeText: { fontSize: 13, fontWeight: '800', color: '#fff' },
-  titleText: { fontSize: 13, color: '#a78bfa', fontWeight: '600' },
-  expBarBg: { height: 6, backgroundColor: '#1e1e4e', borderRadius: 3, overflow: 'hidden', marginBottom: 10 },
-  expBarFill: { height: '100%', backgroundColor: '#7c3aed', borderRadius: 3 },
-  hpRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  hpLabel: { fontSize: 11, fontWeight: '800', color: '#10b981', width: 22 },
-  hpBarBg: { flex: 1, height: 8, backgroundColor: '#1e1e4e', borderRadius: 4, overflow: 'hidden' },
-  hpBarFill: { height: '100%', borderRadius: 4 },
-  hpText: { fontSize: 10, color: '#666', width: 70, textAlign: 'right' },
+  // キャラクターパネル
+  statusPanel: {
+    flexDirection: 'row',
+    marginHorizontal: 12,
+    marginBottom: 10,
+    backgroundColor: '#0E0E24',
+    borderWidth: 2,
+    borderColor: '#2D2D5E',
+    padding: 12,
+    gap: 12,
+  },
+  characterArea: { alignItems: 'center', justifyContent: 'center', position: 'relative' },
+  levelTag: {
+    position: 'absolute', bottom: -4, backgroundColor: '#7c3aed',
+    paddingHorizontal: 8, paddingVertical: 2,
+  },
+  levelTagText: { fontSize: 10, fontWeight: '900', color: '#fff', fontFamily: 'monospace' },
+  statsArea: { flex: 1, justifyContent: 'center', gap: 8 },
+  heroName: { fontSize: 12, fontWeight: '800', color: '#A78BFA', fontFamily: 'monospace', marginBottom: 4 },
 
-  calorieCard: { marginHorizontal: 16, marginBottom: 14, backgroundColor: '#12122A', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#1e1e4e' },
-  calorieRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
-  calorieMain: {},
-  calorieLabel: { fontSize: 12, color: '#555', marginBottom: 4 },
-  calorieValueRow: { flexDirection: 'row', alignItems: 'baseline' },
-  calorieNum: { fontSize: 36, fontWeight: '900', color: '#fff' },
-  calorieUnit: { fontSize: 14, color: '#555' },
-  calorieRemain: { alignItems: 'center' },
-  remainLabel: { fontSize: 11, color: '#555', marginBottom: 2 },
-  remainNum: { fontSize: 24, fontWeight: '800', color: '#10b981' },
-  remainOver: { color: '#ef4444', fontSize: 18 },
-  remainUnit: { fontSize: 11, color: '#555' },
-  pfcRow: { flexDirection: 'row', justifyContent: 'space-around', borderTopWidth: 1, borderTopColor: '#1e1e4e', paddingTop: 12 },
+  // ピクセルバー
+  barRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  barLabel: { fontSize: 10, fontWeight: '900', color: '#2ECC71', fontFamily: 'monospace', width: 28 },
+  pixelBarBg: { flex: 1, height: 10, backgroundColor: '#1a1a3a', borderWidth: 1, borderColor: '#2D2D5E' },
+  pixelBarFill: { height: '100%' },
+  expFill: { backgroundColor: '#7c3aed' },
+  barValue: { fontSize: 9, color: '#555', fontFamily: 'monospace', width: 24, textAlign: 'right' },
+
+  // クエストミニ
+  questMini: { marginTop: 4 },
+  questMiniText: { fontSize: 10, color: '#888', fontFamily: 'monospace', marginBottom: 4 },
+  questDots: { flexDirection: 'row', gap: 4 },
+  questDot: { width: 8, height: 8, backgroundColor: '#1a1a3a', borderWidth: 1, borderColor: '#2D2D5E' },
+  questDotDone: { backgroundColor: '#7c3aed', borderColor: '#A78BFA' },
+
+  // ピクセルウィンドウ
+  pixelWindow: {
+    marginHorizontal: 12,
+    marginBottom: 10,
+    backgroundColor: '#0E0E24',
+    borderWidth: 2,
+    borderColor: '#2D2D5E',
+  },
+  pixelWindowTitle: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#7c3aed',
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+  },
+  pixelWindowTitleText: { fontSize: 11, fontWeight: '900', color: '#fff', fontFamily: 'monospace' },
+  questCount: { fontSize: 11, fontWeight: '900', color: '#FDE68A', fontFamily: 'monospace' },
+
+  // カロリー
+  calorieRow: { flexDirection: 'row', alignItems: 'center', padding: 14 },
+  calorieBig: { fontSize: 38, fontWeight: '900', color: '#fff', fontFamily: 'monospace' },
+  calorieUnit: { fontSize: 10, color: '#555', fontFamily: 'monospace' },
+  calorieDiv: { width: 1, height: 40, backgroundColor: '#2D2D5E', marginHorizontal: 16 },
+  calorieRight: { alignItems: 'flex-start' },
+  remainNum: { fontSize: 26, fontWeight: '900', color: '#2ECC71', fontFamily: 'monospace' },
+  pfcRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    borderTopWidth: 1,
+    borderTopColor: '#2D2D5E',
+    padding: 10,
+  },
   pfcItem: { alignItems: 'center' },
-  pfcLabel: { fontSize: 12, fontWeight: '800' },
-  pfcValue: { fontSize: 16, color: '#fff', fontWeight: '700', marginTop: 2 },
+  pfcLabel: { fontSize: 12, fontWeight: '900', fontFamily: 'monospace' },
+  pfcValue: { fontSize: 14, color: '#fff', fontWeight: '700', fontFamily: 'monospace' },
 
-  questCard: { marginHorizontal: 16, marginBottom: 14, backgroundColor: '#12122A', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#1e1e4e' },
-  questHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
-  questTitle: { fontSize: 15, fontWeight: '800', color: '#fff' },
-  questProgress: { fontSize: 13, fontWeight: '700', color: '#7c3aed' },
-  questItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#1a1a3a', gap: 10 },
-  questItemDone: { opacity: 0.5 },
-  questIcon: { fontSize: 20, width: 28 },
-  questInfo: { flex: 1 },
-  questLabel: { fontSize: 13, fontWeight: '700', color: '#fff' },
+  // クエスト行
+  questRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderBottomWidth: 1,
+    borderBottomColor: '#1a1a3a',
+    gap: 8,
+  },
+  questRowDone: { opacity: 0.45 },
+  questIcon: { fontSize: 16, width: 24 },
+  questLabel: { flex: 1, fontSize: 12, color: '#ccc', fontFamily: 'monospace' },
   questLabelDone: { textDecorationLine: 'line-through', color: '#555' },
-  questDesc: { fontSize: 11, color: '#555', marginTop: 2 },
-  questExpWrap: { width: 48, alignItems: 'flex-end' },
-  questExp: { fontSize: 12, fontWeight: '700', color: '#f59e0b' },
-  questDoneCheck: { fontSize: 16, color: '#10b981', fontWeight: '800' },
-  questAllComplete: { marginTop: 12, backgroundColor: '#1a1a3a', borderRadius: 10, padding: 12, alignItems: 'center', borderWidth: 1, borderColor: '#2d2d5e' },
-  questAllCompleteDone: { backgroundColor: '#1a3a1a', borderColor: '#10b981' },
-  questAllText: { fontSize: 13, fontWeight: '700', color: '#f59e0b' },
+  questCheck: { fontSize: 14, color: '#2ECC71', fontWeight: '900' },
+  questExp: { fontSize: 11, color: '#F59E0B', fontWeight: '800', fontFamily: 'monospace' },
+  allComplete: {
+    margin: 8,
+    padding: 10,
+    backgroundColor: '#1a1a3a',
+    borderWidth: 1,
+    borderColor: '#2D2D5E',
+    alignItems: 'center',
+  },
+  allCompleteDone: { backgroundColor: '#1a3a1a', borderColor: '#2ECC71' },
+  allCompleteText: { fontSize: 12, fontWeight: '900', color: '#F59E0B', fontFamily: 'monospace' },
 
-  shootButton: { marginHorizontal: 16, marginBottom: 14, backgroundColor: '#7c3aed', borderRadius: 18, padding: 20, flexDirection: 'row', alignItems: 'center', gap: 14 },
-  shootIcon: { fontSize: 36 },
-  shootText: { fontSize: 17, fontWeight: '800', color: '#fff' },
-  shootSub: { fontSize: 11, color: 'rgba(255,255,255,0.6)', marginTop: 3 },
+  // ピクセルボタン
+  pixelButton: {
+    marginHorizontal: 12,
+    marginBottom: 10,
+    backgroundColor: '#7c3aed',
+    borderWidth: 2,
+    borderColor: '#A78BFA',
+    borderBottomWidth: 4,
+    borderBottomColor: '#4C1D95',
+    borderRightWidth: 4,
+    borderRightColor: '#4C1D95',
+  },
+  pixelButtonInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    gap: 14,
+  },
+  pixelButtonIcon: { fontSize: 32 },
+  pixelButtonText: { fontSize: 16, fontWeight: '900', color: '#fff', fontFamily: 'monospace' },
+  pixelButtonSub: { fontSize: 10, color: 'rgba(255,255,255,0.65)', marginTop: 3, fontFamily: 'monospace' },
 
-  weightCard: { marginHorizontal: 16, marginBottom: 14, backgroundColor: '#12122A', borderRadius: 16, padding: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderWidth: 1, borderColor: '#1e1e4e' },
-  weightLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  weightEmoji: { fontSize: 24 },
-  weightLabel: { fontSize: 12, color: '#555' },
-  weightValue: { fontSize: 15, fontWeight: '700', color: '#fff', marginTop: 2 },
-  weightExpBadge: { backgroundColor: '#1a2a1a', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: '#10b981' },
-  weightExpText: { fontSize: 12, fontWeight: '700', color: '#10b981' },
-
-  battleCard: { marginHorizontal: 16, marginBottom: 32, backgroundColor: '#1a1a2e', borderRadius: 16, padding: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderWidth: 1, borderColor: '#2d2d4e' },
-  battleLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  battleEmoji: { fontSize: 24 },
-  battleTitle: { fontSize: 15, fontWeight: '700', color: '#fff' },
-  battleSub: { fontSize: 11, color: '#666', marginTop: 2 },
-  battleArrow: { fontSize: 24, color: '#7c3aed', fontWeight: '300' },
+  // 下部カード
+  bottomRow: { flexDirection: 'row', marginHorizontal: 12, marginBottom: 32, gap: 8 },
+  pixelCard: {
+    flex: 1,
+    backgroundColor: '#0E0E24',
+    borderWidth: 2,
+    borderColor: '#2D2D5E',
+    borderBottomWidth: 3,
+    borderBottomColor: '#7c3aed',
+    padding: 14,
+    alignItems: 'center',
+  },
+  pixelCardIcon: { fontSize: 22, marginBottom: 4 },
+  pixelCardLabel: { fontSize: 10, color: '#555', fontFamily: 'monospace' },
+  pixelCardValue: { fontSize: 15, fontWeight: '900', color: '#fff', fontFamily: 'monospace', marginTop: 4 },
+  pixelCardSub: { fontSize: 9, color: '#E74C3C', fontFamily: 'monospace', marginTop: 2 },
+  pixelCardExp: { fontSize: 10, color: '#2ECC71', fontFamily: 'monospace', marginTop: 2 },
 });
