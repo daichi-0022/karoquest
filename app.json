@@ -1,23 +1,35 @@
 {
   "expo": {
-    "name": "karoquest",
+    "name": "カロクエ",
     "slug": "karoquest",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "karoquest",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "dark",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": false,
+      "bundleIdentifier": "com.karoquest.app",
+      "buildNumber": "1",
+      "infoPlist": {
+        "NSCameraUsageDescription": "食事の写真を撮影してカロリーを計算するために使用します。",
+        "NSPhotoLibraryUsageDescription": "食事の写真をライブラリから選択するために使用します。",
+        "NSHealthShareUsageDescription": "体重データを自動取得してダイエット進捗を管理するために使用します。",
+        "NSHealthUpdateUsageDescription": "カロクエはApple HealthKitへの書き込みは行いません。",
+        "NSUserNotificationUsageDescription": "週次バトル結果をお知らせするために使用します。",
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
+      "package": "com.karoquest.app",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "backgroundColor": "#0f0f0f"
       },
-      "predictiveBackGestureEnabled": false
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -31,12 +43,33 @@
         {
           "image": "./assets/images/splash-icon.png",
           "resizeMode": "contain",
-          "backgroundColor": "#ffffff"
+          "backgroundColor": "#0f0f0f"
         }
-      ]
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "食事の写真を撮影してカロリーを計算するために使用します。"
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/notification-icon.png",
+          "color": "#7c3aed"
+        }
+      ],
+      "expo-sqlite",
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "2a31fc7a-9b53-40d9-8922-e085629d3141"
+      }
     }
   }
 }
