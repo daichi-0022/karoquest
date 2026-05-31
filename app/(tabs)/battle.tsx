@@ -1,111 +1,334 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView } from 'react-native';
-import { router } from 'expo-router';
+import { useEffect, useState, useCallback, useRef } from 'react';
+import {
+  View, Text, StyleSheet, ScrollView, TouchableOpacity,
+  SafeAreaView, Animated, Modal, StatusBar,
+} from 'react-native';
+import { useFocusEffect } from 'expo-router';
+import { getProfile, type ProfileWithRpg } from '@/src/db/profile';
+import { getDailySummary } from '@/src/db/meals';
+
+const TODAY = new Date().toISOString().split('T')[0];
+
+const BOSSES = [
+  {
+    id: 1,
+    name: 'ジャンクロード',
+    title: '第1章ボス',
+    emoji: '🍟',
+    desc: 'コンビニスイーツを操る甘味の魔物。\n「今日くらいいいじゃん」が口癖。',
+    weakness: '3食の記録を毎日続けること',
+    chapter: '覚醒の章',
+    borderColor: '#f59e0b',
+    reward: '称号「ジャンクに勝ちし者」+500 EXP',
+    active: true,
+  },
+  {
+    id: 2,
+    name: '夜食魔スナッカー',
+    title: '第2章ボス',
+    emoji: '🌙',
+    desc: '深夜のコンビニに潜む闇の魔物。\n「誰も見てないよ？」と囁いてくる。',
+    weakness: '21時以降の記録なし7日間',
+    chapter: '仲間の章',
+    borderColor: '#818cf8',
+    reward: '称号「深夜の剛の者」+800 EXP',
+    active: false,
+  },
+  {
+    id: 3,
+    name: '停滞の魔将ホメオ',
+    title: '第3章ボス（最重要）',
+    emoji: '🌫️',
+    desc: '体重が動かなくなる停滞期の守護者。\n「お前は何も悪くない。身体が正常な証拠だ」',
+    weakness: '停滞を受け入れ、記録を続けること',
+    chapter: '試練の章',
+    borderColor: '#6b7280',
+    reward: '称号「停滞を越えし者」★最レア +1500 EXP',
+    active: false,
+  },
+];
+
+const STORY_MESSAGES = [
+  { speaker: 'ヘルシア', emoji: '💫', text: '目覚めよ、勇者よ。わたしはヘルシア。\nあなたに栄養の力が宿っています。' },
+  { speaker: 'ヘルシア', emoji: '💫', text: '大食いの魔王グルトンが世界に\n「食べ放題の呪い」をかけました。' },
+  { speaker: 'ヘルシア', emoji: '💫', text: '食事を記録する力で呪いを解いてください。\n今日の記録が、世界を救う一歩になります。' },
+  { speaker: 'タンパロウ', emoji: '💪', text: 'よお勇者！俺はタンパロウ。\n昔は100kg超えてた男だ。一緒に行こうぜ。' },
+  { speaker: 'タンパロウ', emoji: '💪', text: 'まずはジャンクロードをぶっ倒そう。\n記録を続けることが、奴への一番の攻撃だ！' },
+];
+
+function getWeekDays(): string[] {
+  const days = [];
+  const today = new Date();
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(today.getDate() - i);
+    days.push(d.toISOString().split('T')[0]);
+  }
+  return days;
+}
+
+const WEEK_DAYS = getWeekDays();
+const DAY_LABELS = ['月', '火', '水', '木', '金', '土', '日'];
 
 export default function BattleScreen() {
+  const [profile, setProfile] = useState<ProfileWithRpg | null>(null);
+  const [recordedDays, setRecordedDays] = useState<Set<string>>(new Set());
+  const [selectedBoss, setSelectedBoss] = useState<typeof BOSSES[0] | null>(null);
+  const [showStory, setShowStory] = useState(false);
+  const [storyIndex, setStoryIndex] = useState(0);
+
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const shakeAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 1.06, duration: 900, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1, duration: 900, useNativeDriver: true }),
+      ])
+    ).start();
+  }, []);
+
+  const load = useCallback(async () => {
+    const p = await getProfile();
+    setProfile(p);
+    const recorded = new Set<string>();
+    for (const day of WEEK_DAYS) {
+      const s = await getDailySummary(day);
+      if (s && s.total_calories > 0) recorded.add(day);
+    }
+    setRecordedDays(recorded);
+  }, []);
+
+  useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  const currentBoss = BOSSES[0];
+  const streak = recordedDays.size;
+  const bossHp = Math.max(0, 100 - streak * 14);
+
+  const shake = () => {
+    Animated.sequence([
+      Animated.timing(shakeAnim, { toValue: 10, duration: 50, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: -10, duration: 50, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: 5, duration: 50, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: 0, duration: 50, useNativeDriver: true }),
+    ]).start();
+  };
+
   return (
     <SafeAreaView style={styles.safe}>
+      <StatusBar barStyle="light-content" />
       <ScrollView style={styles.scroll}>
+
         <View style={styles.header}>
-          <Text style={styles.title}>バトル</Text>
-          <Text style={styles.sub}>友達とカロリー管理を競おう</Text>
-        </View>
-
-        {/* 今週のバトル (Coming Soon) */}
-        <View style={styles.heroCard}>
-          <Text style={styles.heroEmoji}>⚔️</Text>
-          <Text style={styles.heroTitle}>バトル機能 準備中</Text>
-          <Text style={styles.heroDesc}>
-            友達を招待して、週間カロリー管理ポイントを競い合おう。{'\n'}
-            より目標に近いカロリーを維持した人が勝利！
-          </Text>
-        </View>
-
-        {/* 予定機能リスト */}
-        <View style={styles.featureSection}>
-          <Text style={styles.featureSectionTitle}>実装予定の機能</Text>
-          {FEATURES.map(f => (
-            <View key={f.title} style={styles.featureItem}>
-              <Text style={styles.featureIcon}>{f.icon}</Text>
-              <View style={styles.featureText}>
-                <Text style={styles.featureTitle}>{f.title}</Text>
-                <Text style={styles.featureDesc}>{f.desc}</Text>
-              </View>
-            </View>
-          ))}
-        </View>
-
-        {/* 今週の自分のスコア */}
-        <View style={styles.myScoreCard}>
-          <Text style={styles.myScoreLabel}>今週の自分のスコア</Text>
-          <View style={styles.myScoreRow}>
-            <ScoreItem label="記録日数" value="0" unit="日" />
-            <ScoreItem label="獲得EXP" value="0" unit="EXP" />
-            <ScoreItem label="達成率" value="--" unit="%" />
-          </View>
-          <TouchableOpacity style={styles.recordBtn} onPress={() => router.push('/camera' as any)}>
-            <Text style={styles.recordBtnText}>📸 今日の食事を記録してポイントを貯めよう</Text>
+          <Text style={styles.title}>⚔️ バトル</Text>
+          <TouchableOpacity style={styles.storyBtn} onPress={() => { setStoryIndex(0); setShowStory(true); }}>
+            <Text style={styles.storyBtnText}>📖 ストーリー</Text>
           </TouchableOpacity>
         </View>
 
-        {/* 招待 placeholder */}
-        <View style={styles.inviteCard}>
-          <Text style={styles.inviteTitle}>友達を招待する</Text>
-          <Text style={styles.inviteDesc}>招待機能はアップデートで追加予定です</Text>
-          <View style={styles.inviteBtn}>
-            <Text style={styles.inviteBtnText}>Coming Soon</Text>
+        {/* 現在のボス */}
+        <Animated.View style={[styles.bossCard, { transform: [{ translateX: shakeAnim }] }]}>
+          <View style={styles.bossTopRow}>
+            <View style={styles.bossChapterBadge}>
+              <Text style={styles.bossChapterText}>{currentBoss.chapter}</Text>
+            </View>
+            <Text style={styles.bossTitleText}>{currentBoss.title}</Text>
+          </View>
+
+          <TouchableOpacity onPress={shake} activeOpacity={0.8}>
+            <Animated.Text style={[styles.bossEmoji, { transform: [{ scale: pulseAnim }] }]}>
+              {currentBoss.emoji}
+            </Animated.Text>
+          </TouchableOpacity>
+
+          <Text style={styles.bossName}>{currentBoss.name}</Text>
+          <Text style={styles.bossDesc}>{currentBoss.desc}</Text>
+
+          <View style={styles.bossHpSection}>
+            <View style={styles.bossHpRow}>
+              <Text style={styles.bossHpLabel}>ボスHP</Text>
+              <Text style={styles.bossHpNum}>{bossHp}/100</Text>
+            </View>
+            <View style={styles.bossHpBg}>
+              <View style={[styles.bossHpFill, { width: `${bossHp}%` as any }]} />
+            </View>
+          </View>
+
+          <View style={styles.weaknessBox}>
+            <Text style={styles.weaknessLabel}>⚡ 弱点</Text>
+            <Text style={styles.weaknessText}>{currentBoss.weakness}</Text>
+          </View>
+
+          <View style={styles.attackHint}>
+            <Text style={styles.attackHintText}>食事を記録するたびにボスにダメージ！</Text>
+          </View>
+        </Animated.View>
+
+        {/* 今週の戦績 */}
+        <View style={styles.weekCard}>
+          <Text style={styles.weekTitle}>今週の戦績</Text>
+          <View style={styles.weekRow}>
+            {WEEK_DAYS.map((day, i) => {
+              const recorded = recordedDays.has(day);
+              const isToday = day === TODAY;
+              return (
+                <View key={day} style={[styles.dayCell, isToday && styles.dayCellToday]}>
+                  <Text style={[styles.dayLabel, isToday && styles.dayLabelToday]}>{DAY_LABELS[i]}</Text>
+                  <View style={[styles.dayDot, recorded ? styles.dayDotDone : styles.dayDotEmpty]}>
+                    <Text style={styles.dayDotText}>{recorded ? '⚔' : '·'}</Text>
+                  </View>
+                  {recorded && <Text style={styles.dayDamage}>-14</Text>}
+                </View>
+              );
+            })}
+          </View>
+          <Text style={styles.weekSummary}>
+            {streak}日記録 → ボスに {streak * 14} ダメージ！
+          </Text>
+        </View>
+
+        {/* 次のボス予告 */}
+        <View style={styles.nextCard}>
+          <Text style={styles.nextTitle}>⏳ 今後のボス</Text>
+          {BOSSES.slice(1).map(boss => (
+            <TouchableOpacity key={boss.id} style={styles.nextItem} onPress={() => setSelectedBoss(boss)}>
+              <Text style={styles.nextEmoji}>{boss.emoji}</Text>
+              <View style={styles.nextInfo}>
+                <Text style={styles.nextName}>{boss.name}</Text>
+                <Text style={styles.nextChapter}>{boss.chapter}</Text>
+              </View>
+              <Text style={styles.nextLock}>🔒</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* 撃破報酬 */}
+        <View style={styles.rewardCard}>
+          <Text style={styles.rewardTitle}>🏆 撃破報酬</Text>
+          <Text style={styles.rewardText}>{currentBoss.reward}</Text>
+        </View>
+
+      </ScrollView>
+
+      {/* ストーリーモーダル */}
+      <Modal visible={showStory} animationType="fade" transparent>
+        <View style={styles.modalBg}>
+          <View style={styles.modalBox}>
+            <Text style={styles.modalSpeaker}>
+              {STORY_MESSAGES[storyIndex].emoji}　{STORY_MESSAGES[storyIndex].speaker}
+            </Text>
+            <Text style={styles.modalText}>{STORY_MESSAGES[storyIndex].text}</Text>
+            <View style={styles.modalBtns}>
+              {storyIndex > 0 && (
+                <TouchableOpacity style={styles.modalBtnSec} onPress={() => setStoryIndex(i => i - 1)}>
+                  <Text style={styles.modalBtnSecText}>← 戻る</Text>
+                </TouchableOpacity>
+              )}
+              {storyIndex < STORY_MESSAGES.length - 1 ? (
+                <TouchableOpacity style={styles.modalBtnPri} onPress={() => setStoryIndex(i => i + 1)}>
+                  <Text style={styles.modalBtnPriText}>次へ →</Text>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity style={styles.modalBtnPri} onPress={() => setShowStory(false)}>
+                  <Text style={styles.modalBtnPriText}>冒険を始める！</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+            <Text style={styles.modalPager}>{storyIndex + 1} / {STORY_MESSAGES.length}</Text>
           </View>
         </View>
-      </ScrollView>
+      </Modal>
+
+      {/* ボス詳細モーダル */}
+      <Modal visible={!!selectedBoss} animationType="slide" transparent>
+        <View style={styles.modalBg}>
+          <View style={styles.modalBox}>
+            <Text style={styles.modalBossEmoji}>{selectedBoss?.emoji}</Text>
+            <Text style={styles.modalBossName}>{selectedBoss?.name}</Text>
+            <Text style={styles.modalBossChapter}>{selectedBoss?.chapter}</Text>
+            <Text style={styles.modalText}>{selectedBoss?.desc}</Text>
+            <View style={styles.weaknessBox}>
+              <Text style={styles.weaknessLabel}>⚡ 弱点</Text>
+              <Text style={styles.weaknessText}>{selectedBoss?.weakness}</Text>
+            </View>
+            <TouchableOpacity style={[styles.modalBtnPri, { marginTop: 20 }]} onPress={() => setSelectedBoss(null)}>
+              <Text style={styles.modalBtnPriText}>閉じる</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
     </SafeAreaView>
   );
 }
 
-const FEATURES = [
-  { icon: '👥', title: '友達グループ', desc: '最大4人でバトルグループを作成' },
-  { icon: '📊', title: 'リアルタイムランキング', desc: '週間ポイントで順位を競う' },
-  { icon: '🏆', title: '週次表彰', desc: '1位には特別EXPボーナス' },
-  { icon: '💬', title: '応援コメント', desc: 'グループメンバーに声かけ' },
-];
-
-function ScoreItem({ label, value, unit }: { label: string; value: string; unit: string }) {
-  return (
-    <View style={styles.scoreItem}>
-      <Text style={styles.scoreValue}>{value}</Text>
-      <Text style={styles.scoreUnit}>{unit}</Text>
-      <Text style={styles.scoreLabel}>{label}</Text>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#0f0f0f' },
+  safe: { flex: 1, backgroundColor: '#0D0D1A' },
   scroll: { flex: 1 },
-  header: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 8 },
-  title: { fontSize: 22, fontWeight: '800', color: '#fff' },
-  sub: { fontSize: 13, color: '#666', marginTop: 2 },
-  heroCard: { margin: 16, backgroundColor: '#1a1a2e', borderRadius: 20, padding: 32, alignItems: 'center', borderWidth: 1, borderColor: '#2d2d4e' },
-  heroEmoji: { fontSize: 56, marginBottom: 16 },
-  heroTitle: { fontSize: 20, fontWeight: '800', color: '#fff', marginBottom: 12 },
-  heroDesc: { fontSize: 14, color: '#888', textAlign: 'center', lineHeight: 22 },
-  featureSection: { marginHorizontal: 16, marginBottom: 16 },
-  featureSectionTitle: { fontSize: 14, color: '#666', fontWeight: '600', marginBottom: 12 },
-  featureItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#1a1a1a', borderRadius: 14, padding: 16, marginBottom: 8 },
-  featureIcon: { fontSize: 28, marginRight: 14 },
-  featureText: { flex: 1 },
-  featureTitle: { fontSize: 14, fontWeight: '700', color: '#fff', marginBottom: 2 },
-  featureDesc: { fontSize: 12, color: '#666' },
-  myScoreCard: { marginHorizontal: 16, marginBottom: 16, backgroundColor: '#1a1a1a', borderRadius: 16, padding: 16 },
-  myScoreLabel: { fontSize: 14, color: '#888', marginBottom: 12 },
-  myScoreRow: { flexDirection: 'row', justifyContent: 'space-around', marginBottom: 16 },
-  scoreItem: { alignItems: 'center' },
-  scoreValue: { fontSize: 28, fontWeight: '900', color: '#7c3aed' },
-  scoreUnit: { fontSize: 12, color: '#666' },
-  scoreLabel: { fontSize: 11, color: '#555', marginTop: 2 },
-  recordBtn: { backgroundColor: '#2d2d4e', borderRadius: 12, padding: 14, alignItems: 'center' },
-  recordBtnText: { color: '#7c3aed', fontSize: 13, fontWeight: '600' },
-  inviteCard: { marginHorizontal: 16, marginBottom: 32, backgroundColor: '#1a1a1a', borderRadius: 16, padding: 20, alignItems: 'center' },
-  inviteTitle: { fontSize: 16, fontWeight: '700', color: '#fff', marginBottom: 6 },
-  inviteDesc: { fontSize: 13, color: '#666', marginBottom: 16 },
-  inviteBtn: { backgroundColor: '#2a2a2a', borderRadius: 10, paddingHorizontal: 32, paddingVertical: 12 },
-  inviteBtnText: { color: '#555', fontSize: 14, fontWeight: '600' },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 16, paddingBottom: 8 },
+  title: { fontSize: 20, fontWeight: '800', color: '#fff' },
+  storyBtn: { backgroundColor: '#1a1a3e', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 8, borderWidth: 1, borderColor: '#2d2d5e' },
+  storyBtnText: { fontSize: 13, fontWeight: '700', color: '#a78bfa' },
+
+  bossCard: { margin: 16, backgroundColor: '#12122A', borderRadius: 20, padding: 20, borderWidth: 1, borderColor: '#f59e0b', alignItems: 'center' },
+  bossTopRow: { flexDirection: 'row', gap: 10, marginBottom: 12, alignItems: 'center' },
+  bossChapterBadge: { backgroundColor: '#2a1a0a', borderRadius: 6, paddingHorizontal: 10, paddingVertical: 3 },
+  bossChapterText: { fontSize: 11, color: '#f59e0b', fontWeight: '700' },
+  bossTitleText: { fontSize: 11, color: '#555' },
+  bossEmoji: { fontSize: 80, marginBottom: 8 },
+  bossName: { fontSize: 24, fontWeight: '900', color: '#fff', marginBottom: 8 },
+  bossDesc: { fontSize: 13, color: '#888', textAlign: 'center', lineHeight: 20, marginBottom: 16 },
+  bossHpSection: { width: '100%', marginBottom: 14 },
+  bossHpRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
+  bossHpLabel: { fontSize: 12, color: '#888', fontWeight: '700' },
+  bossHpNum: { fontSize: 12, color: '#ef4444', fontWeight: '700' },
+  bossHpBg: { height: 12, backgroundColor: '#1a1a3a', borderRadius: 6, overflow: 'hidden' },
+  bossHpFill: { height: '100%', backgroundColor: '#ef4444', borderRadius: 6 },
+  weaknessBox: { backgroundColor: '#1a1a0a', borderRadius: 10, padding: 12, width: '100%', marginBottom: 12 },
+  weaknessLabel: { fontSize: 11, color: '#f59e0b', fontWeight: '800', marginBottom: 4 },
+  weaknessText: { fontSize: 13, color: '#ccc' },
+  attackHint: { backgroundColor: '#1a1a3a', borderRadius: 10, padding: 10, width: '100%', alignItems: 'center' },
+  attackHintText: { fontSize: 12, color: '#7c3aed', fontWeight: '700' },
+
+  weekCard: { marginHorizontal: 16, marginBottom: 14, backgroundColor: '#12122A', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#1e1e4e' },
+  weekTitle: { fontSize: 15, fontWeight: '800', color: '#fff', marginBottom: 14 },
+  weekRow: { flexDirection: 'row', justifyContent: 'space-between' },
+  dayCell: { alignItems: 'center', flex: 1 },
+  dayCellToday: {},
+  dayLabel: { fontSize: 11, color: '#555', marginBottom: 6 },
+  dayLabelToday: { color: '#7c3aed', fontWeight: '800' },
+  dayDot: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
+  dayDotDone: { backgroundColor: '#7c3aed' },
+  dayDotEmpty: { backgroundColor: '#1a1a3a' },
+  dayDotText: { fontSize: 14 },
+  dayDamage: { fontSize: 10, color: '#ef4444', fontWeight: '700' },
+  weekSummary: { marginTop: 14, fontSize: 13, color: '#a78bfa', fontWeight: '700', textAlign: 'center' },
+
+  nextCard: { marginHorizontal: 16, marginBottom: 14, backgroundColor: '#12122A', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#1e1e4e' },
+  nextTitle: { fontSize: 15, fontWeight: '800', color: '#fff', marginBottom: 12 },
+  nextItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#1a1a3a', gap: 12 },
+  nextEmoji: { fontSize: 28 },
+  nextInfo: { flex: 1 },
+  nextName: { fontSize: 14, fontWeight: '700', color: '#555' },
+  nextChapter: { fontSize: 11, color: '#333', marginTop: 2 },
+  nextLock: { fontSize: 18 },
+
+  rewardCard: { marginHorizontal: 16, marginBottom: 32, backgroundColor: '#1a2a1a', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#10b981' },
+  rewardTitle: { fontSize: 14, fontWeight: '800', color: '#10b981', marginBottom: 8 },
+  rewardText: { fontSize: 13, color: '#ccc' },
+
+  modalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.88)', alignItems: 'center', justifyContent: 'center', padding: 24 },
+  modalBox: { backgroundColor: '#12122A', borderRadius: 20, padding: 24, width: '100%', borderWidth: 1, borderColor: '#2d2d5e' },
+  modalSpeaker: { fontSize: 16, fontWeight: '800', color: '#a78bfa', marginBottom: 14 },
+  modalText: { fontSize: 15, color: '#ccc', lineHeight: 26, marginBottom: 8 },
+  modalBtns: { flexDirection: 'row', justifyContent: 'flex-end', gap: 10, marginTop: 16 },
+  modalBtnPri: { backgroundColor: '#7c3aed', borderRadius: 12, paddingHorizontal: 20, paddingVertical: 12 },
+  modalBtnPriText: { fontSize: 14, fontWeight: '800', color: '#fff' },
+  modalBtnSec: { backgroundColor: '#1a1a3a', borderRadius: 12, paddingHorizontal: 20, paddingVertical: 12 },
+  modalBtnSecText: { fontSize: 14, fontWeight: '700', color: '#666' },
+  modalPager: { fontSize: 11, color: '#444', textAlign: 'center', marginTop: 12 },
+  modalBossEmoji: { fontSize: 56, textAlign: 'center', marginBottom: 8 },
+  modalBossName: { fontSize: 22, fontWeight: '900', color: '#fff', textAlign: 'center', marginBottom: 4 },
+  modalBossChapter: { fontSize: 12, color: '#f59e0b', textAlign: 'center', marginBottom: 12 },
 });

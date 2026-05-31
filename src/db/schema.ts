@@ -59,14 +59,30 @@ export async function initializeDatabase(): Promise<void> {
       created_at TEXT DEFAULT (datetime('now'))
     );
 
+    CREATE TABLE IF NOT EXISTS daily_quests (
+      id TEXT PRIMARY KEY,
+      date TEXT NOT NULL,
+      quest_type TEXT NOT NULL,
+      completed INTEGER DEFAULT 0,
+      completed_at TEXT,
+      exp_reward INTEGER NOT NULL DEFAULT 0
+    );
+
+    CREATE TABLE IF NOT EXISTS story_progress (
+      id TEXT PRIMARY KEY DEFAULT 'me',
+      current_chapter INTEGER DEFAULT 0,
+      completed_chapters TEXT DEFAULT '[]',
+      last_story_shown TEXT
+    );
+
     CREATE INDEX IF NOT EXISTS idx_meals_date ON meals(date);
     CREATE INDEX IF NOT EXISTS idx_weights_date ON weights(date);
+    CREATE INDEX IF NOT EXISTS idx_quests_date ON daily_quests(date);
   `);
 
   // デフォルトプロフィール挿入
-  await database.runAsync(
-    `INSERT OR IGNORE INTO user_profile (id) VALUES ('me')`
-  );
+  await database.runAsync(`INSERT OR IGNORE INTO user_profile (id) VALUES ('me')`);
+  await database.runAsync(`INSERT OR IGNORE INTO story_progress (id) VALUES ('me')`)
 }
 
 // EXP計算
@@ -75,6 +91,12 @@ export const EXP_REWARDS = {
   DAILY_GOAL_MET: 50,
   STREAK_7_DAYS: 100,
   WEIGHT_DECREASED: 80,
+  QUEST_BREAKFAST: 20,
+  QUEST_THREE_MEALS: 50,
+  QUEST_CALORIE_GOAL: 80,
+  QUEST_PROTEIN: 40,
+  QUEST_WEIGHT: 30,
+  QUEST_ALL_COMPLETE: 200,
 } as const;
 
 // レベルアップに必要なEXP（レベル×200）
@@ -102,13 +124,23 @@ export function expInCurrentLevel(totalExp: number): number {
   return exp;
 }
 
-// 称号
+// 称号（15段階）
 const TITLES: Record<number, string> = {
-  1: '見習い冒険者',
-  5: 'カロリーハンター',
+  1:  '見習い冒険者',
+  3:  'カロリーの使い手',
+  5:  '食事管理の戦士',
+  8:  'タンパク質の騎士',
   10: 'カロリースレイヤー',
+  13: '節制の魔法使い',
+  15: '体重減少の賢者',
+  18: '代謝の錬金術師',
   20: 'ダイエット勇者',
+  25: '健康の守護者',
   30: '伝説の勇者',
+  35: '栄養の覇者',
+  40: '不滅の勇者',
+  45: 'カロリーの神域',
+  50: 'カロリーの神',
 };
 
 export function getTitle(level: number): string {
