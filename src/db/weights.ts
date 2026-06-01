@@ -25,21 +25,33 @@ export async function saveWeight(
   source: WeightEntry['source'] = 'manual'
 ): Promise<{ expGained: number }> {
   const db = getDb();
-  const id = uuidv4();
 
-  await db.runAsync(
-    `INSERT OR REPLACE INTO weights (id, date, weight_kg, source) VALUES (?, ?, ?, ?)`,
-    [id, date, weight_kg, source]
+  // UNIQUE制約対応: 同日に既存レコードがあればUPDATE、なければINSERT
+  const existing = await db.getFirstAsync<{ id: string }>(
+    `SELECT id FROM weights WHERE date = ?`, [date]
   );
+  if (existing) {
+    await db.runAsync(
+      `UPDATE weights SET weight_kg = ?, source = ? WHERE date = ?`,
+      [weight_kg, source, date]
+    );
+  } else {
+    await db.runAsync(
+      `INSERT INTO weights (id, date, weight_kg, source) VALUES (?, ?, ?, ?)`,
+      [uuidv4(), date, weight_kg, source]
+    );
+  }
 
-  // 先週比で体重減少していればEXP付与
-  const lastWeek = new Date(date);
-  lastWeek.setDate(lastWeek.getDate() - 7);
-  const lastWeekStr = lastWeek.toISOString().split('T')[0];
+  // 先週比（直近7日以内の記録と比較）でEXP付与
+  const sevenDaysAgo = new Date(date);
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+  const sevenDaysAgoStr = sevenDaysAgo.toISOString().split('T')[0];
 
   const prev = await db.getFirstAsync<{ weight_kg: number }>(
-    `SELECT weight_kg FROM weights WHERE date <= ? ORDER BY date DESC LIMIT 1`,
-    [lastWeekStr]
+    `SELECT weight_kg FROM weights
+     WHERE date >= ? AND date < ?
+     ORDER BY date DESC LIMIT 1`,
+    [sevenDaysAgoStr, date]
   );
 
   let expGained = 0;
@@ -51,19 +63,39 @@ export async function saveWeight(
     expGained = EXP_REWARDS.WEIGHT_DECREASED;
   }
 
-  // 体重変化に応じてPFC目標を自動更新（体重×1.8gがタンパク質目標）
-  const profile = await db.getFirstAsync<{ daily_calorie_target: number; fat_target_g: number }>(
-    `SELECT daily_calorie_target, fat_target_g FROM user_profile WHERE id = 'me'`
-  );
+  // 体重変化に応じてPFC目標・目標達成日を自動更新
+  const profile = await db.getFirstAsync<{
+    daily_calorie_target: number;
+    fat_target_g: number;
+    target_weight_kg: number | null;
+    weekly_loss_kg: number;
+  }>(`SELECT daily_calorie_target, fat_target_g, target_weight_kg, weekly_loss_kg FROM user_profile WHERE id = 'me'`);
+
   if (profile) {
     const newProtein = Math.round(weight_kg * 1.8);
-    const newCarbs   = Math.max(
+    const newCarbs = Math.max(
       Math.round((profile.daily_calorie_target - newProtein * 4 - profile.fat_target_g * 9) / 4),
       50
     );
+
+    // 目標達成日を再計算
+    let newTargetDate: string | null = null;
+    if (profile.target_weight_kg && weight_kg > profile.target_weight_kg && profile.weekly_loss_kg > 0) {
+      const diff = weight_kg - profile.target_weight_kg;
+      const weeks = Math.ceil(diff / profile.weekly_loss_kg);
+      const d = new Date();
+      d.setDate(d.getDate() + weeks * 7);
+      newTargetDate = d.toISOString().split('T')[0];
+    }
+
     await db.runAsync(
-      `UPDATE user_profile SET current_weight_kg = ?, protein_target_g = ?, carbs_target_g = ? WHERE id = 'me'`,
-      [weight_kg, newProtein, newCarbs]
+      `UPDATE user_profile SET
+        current_weight_kg = ?,
+        protein_target_g = ?,
+        carbs_target_g = ?,
+        target_date = COALESCE(?, target_date)
+       WHERE id = 'me'`,
+      [weight_kg, newProtein, newCarbs, newTargetDate]
     );
   }
 
@@ -96,12 +128,13 @@ export async function saveEvoltScan(
   const db = getDb();
   const id = uuidv4();
 
+  // Evoltスキャンを保存
   await db.runAsync(
     `INSERT INTO evolt_scans (id, date, weight_kg, body_fat_pct, muscle_mass_kg) VALUES (?, ?, ?, ?, ?)`,
     [id, date, weight_kg, body_fat_pct, muscle_mass_kg]
   );
 
-  // 体重もweightsテーブルに記録
+  // 体重もweightsテーブルに記録（UNIQUE制約対応済み）
   await saveWeight(date, weight_kg, 'evolt');
 }
 

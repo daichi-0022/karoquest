@@ -6,6 +6,7 @@ import {
 import { useFocusEffect, router } from 'expo-router';
 import { getProfile, updateProfile, type ProfileWithRpg } from '@/src/db/profile';
 import { getDb } from '@/src/db/schema';
+import Constants from 'expo-constants';
 
 export default function SettingsScreen() {
   const [profile, setProfile] = useState<ProfileWithRpg | null>(null);
@@ -186,9 +187,12 @@ export default function SettingsScreen() {
         {/* アプリ情報 */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>アプリ情報</Text>
-          <InfoRow label="バージョン" value="1.0.0 (MVP)" />
+          <InfoRow label="バージョン" value={`${Constants.expoConfig?.version ?? '1.0.0'}`} />
           <TouchableOpacity onPress={() => Linking.openURL('https://daichi-0022.github.io/karoquest/privacy.html')}>
             <InfoRow label="プライバシーポリシー" value="›" />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => Linking.openURL('https://daichi-0022.github.io/karoquest/terms.html')}>
+            <InfoRow label="利用規約" value="›" />
           </TouchableOpacity>
           <TouchableOpacity onPress={() => Linking.openURL('mailto:karoquest.app@gmail.com')}>
             <InfoRow label="お問い合わせ" value="karoquest.app@gmail.com" small />
@@ -235,7 +239,7 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.footer}>カロクエ v1.0.0 — Made with ❤️ in Japan</Text>
+        <Text style={styles.footer}>カロクエ v{Constants.expoConfig?.version ?? '1.0.0'} — Made with ❤️ in Japan</Text>
       </ScrollView>
     </SafeAreaView>
   );

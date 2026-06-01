@@ -184,7 +184,13 @@ export async function tryDrop(): Promise<{ item: InventoryItem | null; expCost: 
   const newPity = state.pity_count + 1;
   await db.runAsync(`UPDATE gacha_state SET pity_count = ?, total_pulls = total_pulls + 1 WHERE id = 'me'`, [newPity]);
 
-  const rarity = rollRarity(newPity);
+  // ハードピティ: 60回目はSSR確定
+  let rarity: Rarity;
+  if (newPity >= 60) {
+    rarity = 'SSR';
+  } else {
+    rarity = rollRarity(newPity);
+  }
   const item = await dropEquipment(rarity);
 
   // SSR以上が出たらpityリセット

@@ -105,5 +105,55 @@ export async function getDailySummary(date: string): Promise<DailySummary | null
 
 export async function deleteMeal(id: string): Promise<void> {
   const db = getDb();
+  // 削除前に日付を取得
+  const meal = await db.getFirstAsync<{ date: string }>(`SELECT date FROM meals WHERE id = ?`, [id]);
   await db.runAsync(`DELETE FROM meals WHERE id = ?`, [id]);
+
+  // 削除後にクエストを再評価（条件を満たさなくなったものはリセット）
+  if (meal?.date) {
+    const profile = await db.getFirstAsync<{ daily_calorie_target: number; protein_target_g: number }>(
+      `SELECT daily_calorie_target, protein_target_g FROM user_profile WHERE id = 'me'`
+    );
+    const summary = await getDailySummary(meal.date);
+    const allMeals = await getMealsForDate(meal.date);
+    const mealTypes = new Set(allMeals.map(m => m.meal_type));
+
+    // 条件を満たさなくなったクエストをリセット（EXP返還なし）
+    if (!mealTypes.has('breakfast')) {
+      await db.runAsync(
+        `UPDATE daily_quests SET completed = 0, completed_at = NULL WHERE date = ? AND quest_type = 'breakfast' AND completed = 1`,
+        [meal.date]
+      );
+    }
+    const hasThreeMeals = mealTypes.has('breakfast') && mealTypes.has('lunch') && mealTypes.has('dinner');
+    if (!hasThreeMeals) {
+      await db.runAsync(
+        `UPDATE daily_quests SET completed = 0, completed_at = NULL WHERE date = ? AND quest_type = 'three_meals' AND completed = 1`,
+        [meal.date]
+      );
+    }
+    if (profile && summary) {
+      const ratio = profile.daily_calorie_target > 0 ? summary.total_calories / profile.daily_calorie_target : 0;
+      if (ratio < 0.8 || ratio > 1.05) {
+        await db.runAsync(
+          `UPDATE daily_quests SET completed = 0, completed_at = NULL WHERE date = ? AND quest_type = 'calorie_goal' AND completed = 1`,
+          [meal.date]
+        );
+      }
+      const proteinTarget = profile.protein_target_g ?? 50;
+      if (summary.total_protein_g < proteinTarget) {
+        await db.runAsync(
+          `UPDATE daily_quests SET completed = 0, completed_at = NULL WHERE date = ? AND quest_type = 'protein' AND completed = 1`,
+          [meal.date]
+        );
+      }
+    }
+    // all_completeもリセット
+    await db.runAsync(
+      `UPDATE daily_quests SET completed = 0, completed_at = NULL
+       WHERE date = ? AND quest_type = 'all_complete'
+         AND (SELECT COUNT(*) FROM daily_quests WHERE date = ? AND quest_type != 'all_complete' AND completed = 0) > 0`,
+      [meal.date, meal.date]
+    );
+  }
 }

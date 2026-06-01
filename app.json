@@ -14,8 +14,6 @@
       "infoPlist": {
         "NSCameraUsageDescription": "食事の写真を撮影してカロリーを計算するために使用します。",
         "NSPhotoLibraryUsageDescription": "食事の写真をライブラリから選択するために使用します。",
-        "NSHealthShareUsageDescription": "体重データを自動取得してダイエット進捗を管理するために使用します。",
-        "NSHealthUpdateUsageDescription": "カロクエはApple HealthKitへの書き込みは行いません。",
         "NSUserNotificationUsageDescription": "週次バトル結果をお知らせするために使用します。",
         "ITSAppUsesNonExemptEncryption": false
       }
@@ -27,8 +25,7 @@
         "backgroundColor": "#0f0f0f"
       },
       "permissions": [
-        "android.permission.CAMERA",
-        "android.permission.RECORD_AUDIO"
+        "android.permission.CAMERA"
       ]
     },
     "web": {

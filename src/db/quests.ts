@@ -69,17 +69,18 @@ async function initDailyQuests(date: string): Promise<void> {
 
 export async function completeQuest(date: string, questType: QuestType): Promise<number> {
   const db = getDb();
-  const existing = await db.getFirstAsync<{ completed: number }>(
-    `SELECT completed FROM daily_quests WHERE date = ? AND quest_type = ?`,
+
+  // 原子的なUPDATE：completed=0 の行のみ更新（重複防止）
+  const result = await db.runAsync(
+    `UPDATE daily_quests SET completed = 1, completed_at = datetime('now')
+     WHERE date = ? AND quest_type = ? AND completed = 0`,
     [date, questType]
   );
-  if (!existing || existing.completed === 1) return 0;
+
+  // changes=0 なら既に完了済みか存在しない
+  if (result.changes === 0) return 0;
 
   const def = QUEST_DEFS[questType];
-  await db.runAsync(
-    `UPDATE daily_quests SET completed = 1, completed_at = datetime('now') WHERE date = ? AND quest_type = ?`,
-    [date, questType]
-  );
   await addExp(def.exp);
 
   // 全クエスト完了チェック（all_complete以外）
