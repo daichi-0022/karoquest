@@ -7,6 +7,8 @@ import { useFocusEffect } from 'expo-router';
 import { getProfile, type ProfileWithRpg } from '@/src/db/profile';
 import { getDailySummary } from '@/src/db/meals';
 import { getDb } from '@/src/db/schema';
+import { shareBossDefeat } from '@/src/share';
+import * as StoreReview from 'expo-store-review';
 
 const TODAY = new Date().toISOString().split('T')[0];
 
@@ -123,12 +125,20 @@ export default function BattleScreen() {
       `⚔️ ${currentBoss.name} 撃破！`,
       `${currentBoss.reward}\n\n次の章が解放されました！`,
       [{
-        text: '次の章へ', onPress: async () => {
+        text: 'シェアする📣', onPress: () => shareBossDefeat(currentBoss.name, currentBossIndex + 1),
+        },
+        {
+          text: '次の章へ', onPress: async () => {
           const db = getDb();
           await db.runAsync(
             `UPDATE story_progress SET current_chapter = current_chapter + 1 WHERE id = 'me'`
           );
           await load();
+          // 第1章撃破時にレビュー依頼（最もポジティブな体験直後）
+          if (currentBossIndex === 0) {
+            const isAvailable = await StoreReview.isAvailableAsync();
+            if (isAvailable) StoreReview.requestReview();
+          }
         }
       }]
     );

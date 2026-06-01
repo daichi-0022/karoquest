@@ -4,6 +4,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useState } from 'react';
 import 'react-native-reanimated';
 import { initializeDatabase, getDb } from '@/src/db/schema';
+import { scheduleAllNotifications } from '@/src/notifications';
 
 export { ErrorBoundary } from 'expo-router';
 
@@ -32,6 +33,9 @@ export default function RootLayout() {
         );
         if (!row?.onboarding_done) {
           router.replace('/onboarding');
+        } else {
+          // オンボーディング完了済みユーザーにのみ通知をスケジュール
+          scheduleAllNotifications().catch(() => {/* 通知権限なし時は無視 */});
         }
       });
     }
@@ -46,6 +50,7 @@ export default function RootLayout() {
       <Stack.Screen name="camera"    options={{ presentation: 'fullScreenModal' }} />
       <Stack.Screen name="weight"    options={{ presentation: 'modal' }} />
       <Stack.Screen name="inventory" options={{ presentation: 'modal' }} />
+      <Stack.Screen name="paywall"   options={{ presentation: 'modal', gestureEnabled: false }} />
       <Stack.Screen name="modal"     options={{ presentation: 'modal', headerShown: true, title: '' }} />
     </Stack>
   );

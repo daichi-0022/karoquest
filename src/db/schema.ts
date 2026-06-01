@@ -104,6 +104,13 @@ export async function initializeDatabase(): Promise<void> {
       exp_reward INTEGER NOT NULL DEFAULT 0
     );
 
+    CREATE TABLE IF NOT EXISTS login_bonus (
+      id TEXT PRIMARY KEY DEFAULT 'me',
+      last_login_date TEXT,
+      streak_count INTEGER DEFAULT 0,
+      total_login_days INTEGER DEFAULT 0
+    );
+
     CREATE TABLE IF NOT EXISTS gacha_state (
       id TEXT PRIMARY KEY DEFAULT 'me',
       pity_count INTEGER DEFAULT 0,
@@ -126,6 +133,7 @@ export async function initializeDatabase(): Promise<void> {
   await database.runAsync(`INSERT OR IGNORE INTO user_profile (id) VALUES ('me')`);
   await database.runAsync(`INSERT OR IGNORE INTO story_progress (id) VALUES ('me')`);
   await database.runAsync(`INSERT OR IGNORE INTO gacha_state (id) VALUES ('me')`);
+  await database.runAsync(`INSERT OR IGNORE INTO login_bonus (id) VALUES ('me')`);
 
   // 装備マスターデータ初期挿入
   const equipmentData = [

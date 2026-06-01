@@ -7,6 +7,7 @@ import { useFocusEffect, router } from 'expo-router';
 import { getProfile, updateProfile, type ProfileWithRpg } from '@/src/db/profile';
 import { getDb } from '@/src/db/schema';
 import Constants from 'expo-constants';
+import * as StoreReview from 'expo-store-review';
 
 export default function SettingsScreen() {
   const [profile, setProfile] = useState<ProfileWithRpg | null>(null);
@@ -175,11 +176,11 @@ export default function SettingsScreen() {
             <Text style={styles.subTitle}>カロクエ プレミアム</Text>
             <Text style={styles.subPrice}>¥680 / 月</Text>
             <Text style={styles.subDesc}>• AI食事解析 無制限{'\n'}• バトル機能{'\n'}• 詳細グラフ分析</Text>
-            <TouchableOpacity style={styles.subBtn}>
-              <Text style={styles.subBtnText}>Coming Soon</Text>
+            <TouchableOpacity style={styles.subBtn} onPress={() => router.push('/paywall' as any)}>
+              <Text style={styles.subBtnText}>プレミアムを見る →</Text>
             </TouchableOpacity>
           </View>
-          <TouchableOpacity style={styles.restoreBtn}>
+          <TouchableOpacity style={styles.restoreBtn} onPress={() => router.push('/paywall' as any)}>
             <Text style={styles.restoreBtnText}>購入を復元する</Text>
           </TouchableOpacity>
         </View>

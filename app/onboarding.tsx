@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { getDb } from '@/src/db/schema';
+import { scheduleAllNotifications } from '@/src/notifications';
 
 // ── TDEE計算（Mifflin-St Jeor式） ────────────────────────────
 function calcTDEE(
@@ -111,6 +112,7 @@ export default function OnboardingScreen() {
         protein, fat, carbs,
         targetDate,
       ]);
+      scheduleAllNotifications().catch(() => {});
       router.replace('/');
     } catch (e) {
       Alert.alert('エラー', '保存に失敗しました');

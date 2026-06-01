@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  RefreshControl, StatusBar, SafeAreaView,
+  RefreshControl, StatusBar, SafeAreaView, Modal, Animated as RNAnimated,
 } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { initializeDatabase } from '@/src/db/schema';
@@ -11,6 +11,7 @@ import { getLatestWeight } from '@/src/db/weights';
 import { getDailyQuests, checkAndUpdateQuests, type Quest } from '@/src/db/quests';
 import CGHero from '@/src/components/CGHero';
 import { getEquippedStats, type EquippedStats } from '@/src/db/equipment';
+import { checkLoginBonus, LOGIN_REWARDS, type LoginBonusState } from '@/src/db/loginBonus';
 
 const TODAY = new Date().toISOString().split('T')[0];
 
@@ -22,6 +23,7 @@ export default function HomeScreen() {
   const [equippedStats, setEquippedStats] = useState<EquippedStats | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [dbReady, setDbReady] = useState(false);
+  const [loginBonus, setLoginBonus] = useState<{ state: LoginBonusState; expGained: number; freeGacha: boolean } | null>(null);
 
   const load = useCallback(async () => {
     if (!dbReady) return;
@@ -54,7 +56,14 @@ export default function HomeScreen() {
   }, [dbReady]);
 
   useEffect(() => {
-    initializeDatabase().then(() => setDbReady(true));
+    initializeDatabase().then(async () => {
+      setDbReady(true);
+      // ログインボーナスチェック
+      const result = await checkLoginBonus();
+      if (result.claimed) {
+        setLoginBonus({ state: result.state, expGained: result.expGained, freeGacha: result.freeGacha });
+      }
+    });
   }, []);
 
   useEffect(() => { load(); }, [load]);
@@ -273,6 +282,54 @@ export default function HomeScreen() {
         </View>
 
       </ScrollView>
+
+      {/* ログインボーナスモーダル */}
+      <Modal visible={!!loginBonus} transparent animationType="fade">
+        <View style={styles.bonusBg}>
+          <View style={styles.bonusBox}>
+            <Text style={styles.bonusTitle}>🎉 ログインボーナス！</Text>
+            <Text style={styles.bonusStreak}>
+              {loginBonus?.state.streak}日連続ログイン
+            </Text>
+
+            {/* 週間カレンダー */}
+            <View style={styles.bonusWeek}>
+              {LOGIN_REWARDS.map((r, i) => {
+                const isDone = loginBonus ? i < loginBonus.state.weekDay : false;
+                const isToday = loginBonus ? i === loginBonus.state.weekDay - 1 : false;
+                return (
+                  <View key={i} style={[
+                    styles.bonusDay,
+                    isDone && styles.bonusDayDone,
+                    isToday && styles.bonusDayToday,
+                  ]}>
+                    <Text style={styles.bonusDayIcon}>{r.icon}</Text>
+                    <Text style={styles.bonusDayExp}>+{r.exp}</Text>
+                    <Text style={styles.bonusDayLabel}>{r.day}日</Text>
+                  </View>
+                );
+              })}
+            </View>
+
+            <View style={styles.bonusReward}>
+              <Text style={styles.bonusRewardText}>
+                ✨ +{loginBonus?.expGained} EXP 獲得！
+              </Text>
+              {loginBonus?.freeGacha && (
+                <Text style={styles.bonusFreeGacha}>🎲 ガチャ無料チケット獲得！</Text>
+              )}
+            </View>
+
+            <TouchableOpacity
+              style={styles.bonusBtn}
+              onPress={() => setLoginBonus(null)}
+            >
+              <Text style={styles.bonusBtnText}>冒険を始める！⚔️</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
     </SafeAreaView>
   );
 }
@@ -446,5 +503,22 @@ const styles = StyleSheet.create({
   goalNum: { fontSize: 28, fontWeight: '900', color: '#fff', fontFamily: 'monospace' },
   goalUnit: { fontSize: 10, color: '#F59E0B', fontFamily: 'monospace' },
   goalLabel: { fontSize: 10, color: '#555', fontFamily: 'monospace' },
+  // ログインボーナス
+  bonusBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.88)', alignItems: 'center', justifyContent: 'center', padding: 20 },
+  bonusBox: { backgroundColor: '#12122A', borderRadius: 20, padding: 24, width: '100%', borderWidth: 2, borderColor: '#F59E0B', alignItems: 'center' },
+  bonusTitle: { fontSize: 22, fontWeight: '900', color: '#F59E0B', marginBottom: 4 },
+  bonusStreak: { fontSize: 14, color: '#888', marginBottom: 20 },
+  bonusWeek: { flexDirection: 'row', gap: 6, marginBottom: 20, flexWrap: 'wrap', justifyContent: 'center' },
+  bonusDay: { width: 42, alignItems: 'center', backgroundColor: '#1a1a3a', borderRadius: 10, padding: 6, borderWidth: 1, borderColor: '#2d2d5e' },
+  bonusDayDone: { backgroundColor: '#2d2d5e', borderColor: '#7C3AED' },
+  bonusDayToday: { backgroundColor: '#4C1D95', borderColor: '#F59E0B', borderWidth: 2 },
+  bonusDayIcon: { fontSize: 18 },
+  bonusDayExp: { fontSize: 9, color: '#F59E0B', fontWeight: '800', marginTop: 2 },
+  bonusDayLabel: { fontSize: 9, color: '#555', marginTop: 1 },
+  bonusReward: { backgroundColor: '#1a2a1a', borderRadius: 12, padding: 14, width: '100%', alignItems: 'center', marginBottom: 16 },
+  bonusRewardText: { fontSize: 18, fontWeight: '900', color: '#10B981' },
+  bonusFreeGacha: { fontSize: 14, color: '#F59E0B', fontWeight: '700', marginTop: 6 },
+  bonusBtn: { backgroundColor: '#7C3AED', borderRadius: 14, paddingHorizontal: 32, paddingVertical: 14, width: '100%', alignItems: 'center' },
+  bonusBtnText: { fontSize: 16, fontWeight: '900', color: '#fff' },
   pixelCardExp: { fontSize: 10, color: '#2ECC71', fontFamily: 'monospace', marginTop: 2 },
 });
