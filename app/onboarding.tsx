@@ -6,46 +6,9 @@ import {
 import { router } from 'expo-router';
 import { getDb } from '@/src/db/schema';
 import { scheduleAllNotifications } from '@/src/notifications';
+import { calcTDEE, calcCalorieTarget, calcPFC, calcTargetDate } from '@/src/utils/nutrition';
 
-// ── TDEE計算（Mifflin-St Jeor式） ────────────────────────────
-function calcTDEE(
-  gender: 'male' | 'female',
-  age: number,
-  height: number,
-  weight: number,
-  activity: string,
-): number {
-  const bmr = gender === 'male'
-    ? 10 * weight + 6.25 * height - 5 * age + 5
-    : 10 * weight + 6.25 * height - 5 * age - 161;
-
-  const multipliers: Record<string, number> = {
-    sedentary: 1.2, light: 1.375, moderate: 1.55, active: 1.725, very_active: 1.9,
-  };
-  return Math.round(bmr * (multipliers[activity] ?? 1.375));
-}
-
-// PFC目標計算（体重・目標カロリーから）
-function calcPFC(weight: number, calorieTarget: number) {
-  const protein = Math.round(weight * 1.8);       // 体重×1.8g
-  const fat     = Math.round(calorieTarget * 0.25 / 9); // 25%を脂質
-  const carbs   = Math.round((calorieTarget - protein * 4 - fat * 9) / 4);
-  return { protein, fat, carbs: Math.max(carbs, 50) };
-}
-
-// 目標達成日数計算（0.5kg/週 = 週500kcal赤字）
-function calcTargetDate(
-  currentWeight: number,
-  targetWeight: number,
-  weeklyLoss: number,
-): string | null {
-  if (!targetWeight || currentWeight <= targetWeight) return null;
-  const diff = currentWeight - targetWeight;
-  const weeks = Math.ceil(diff / weeklyLoss);
-  const d = new Date();
-  d.setDate(d.getDate() + weeks * 7);
-  return d.toISOString().split('T')[0];
-}
+// 共通栄養計算はsrc/utils/nutrition.tsを使用
 
 const STEPS = ['性別・年齢', '身長・体重', '目標設定', '活動量', '確認'] as const;
 
@@ -82,9 +45,7 @@ export default function OnboardingScreen() {
   const targetWN = parseFloat(targetW) || 65;
 
   const tdee = calcTDEE(gender, ageN, heightN, weightN, activity);
-  const deficit = Math.round(weeklyLoss * 1000); // 1日の赤字(kcal)
-  const minCalorie = gender === 'male' ? 1500 : 1200;
-  const calorieTarget = Math.max(tdee - deficit, minCalorie);
+  const calorieTarget = calcCalorieTarget(tdee, weeklyLoss, gender);
   const { protein, fat, carbs } = calcPFC(weightN, calorieTarget);
   const targetDate = calcTargetDate(weightN, targetWN, weeklyLoss);
   const daysToGoal = targetDate
@@ -332,7 +293,7 @@ export default function OnboardingScreen() {
 
             <View style={styles.noteCard}>
               <Text style={styles.noteText}>
-                💡 毎日全クエストをこなすと約480EXP獲得できます。{'\n'}
+                💡 毎日全クエストをこなすと約450EXP獲得できます。{'\n'}
                 楽しみながら記録を続けましょう！
               </Text>
             </View>

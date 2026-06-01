@@ -14,7 +14,7 @@
       "infoPlist": {
         "NSCameraUsageDescription": "食事の写真を撮影してカロリーを計算するために使用します。",
         "NSPhotoLibraryUsageDescription": "食事の写真をライブラリから選択するために使用します。",
-        "NSUserNotificationUsageDescription": "週次バトル結果をお知らせするために使用します。",
+        "NSUserNotificationUsageDescription": "食事記録のリマインダーとログインボーナスのお知らせに使用します。",
         "ITSAppUsesNonExemptEncryption": false
       }
     },

@@ -1,4 +1,5 @@
 import { getDb, EXP_REWARDS } from './schema';
+import { calcPFC, calcTargetDate } from '../utils/nutrition';
 import 'react-native-get-random-values';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -66,36 +67,27 @@ export async function saveWeight(
   // 体重変化に応じてPFC目標・目標達成日を自動更新
   const profile = await db.getFirstAsync<{
     daily_calorie_target: number;
-    fat_target_g: number;
     target_weight_kg: number | null;
     weekly_loss_kg: number;
-  }>(`SELECT daily_calorie_target, fat_target_g, target_weight_kg, weekly_loss_kg FROM user_profile WHERE id = 'me'`);
+    onboarding_done: number;
+  }>(`SELECT daily_calorie_target, target_weight_kg, weekly_loss_kg, onboarding_done FROM user_profile WHERE id = 'me'`);
 
-  if (profile) {
+  if (profile && profile.onboarding_done) {
+    // タンパク質のみ体重連動で更新（脂質・炭水化物はユーザー設定を尊重）
     const newProtein = Math.round(weight_kg * 1.8);
-    const newCarbs = Math.max(
-      Math.round((profile.daily_calorie_target - newProtein * 4 - profile.fat_target_g * 9) / 4),
-      50
+    const newTargetDate = calcTargetDate(
+      weight_kg,
+      profile.target_weight_kg ?? 0,
+      profile.weekly_loss_kg
     );
-
-    // 目標達成日を再計算
-    let newTargetDate: string | null = null;
-    if (profile.target_weight_kg && weight_kg > profile.target_weight_kg && profile.weekly_loss_kg > 0) {
-      const diff = weight_kg - profile.target_weight_kg;
-      const weeks = Math.ceil(diff / profile.weekly_loss_kg);
-      const d = new Date();
-      d.setDate(d.getDate() + weeks * 7);
-      newTargetDate = d.toISOString().split('T')[0];
-    }
 
     await db.runAsync(
       `UPDATE user_profile SET
         current_weight_kg = ?,
         protein_target_g = ?,
-        carbs_target_g = ?,
         target_date = COALESCE(?, target_date)
        WHERE id = 'me'`,
-      [weight_kg, newProtein, newCarbs, newTargetDate]
+      [weight_kg, newProtein, newTargetDate]
     );
   }
 

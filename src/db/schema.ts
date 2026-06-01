@@ -193,10 +193,14 @@ export const EXP_REWARDS = {
 } as const;
 
 // レベルアップに必要なEXP
-// 設計: Lv1→2=300, Lv5→6=600, Lv10→11=1200, Lv20→21=2800, Lv30→31=5100
-// 毎日全クエスト480EXP達成時: Lv1→5は約4日、Lv10→15は約10日、Lv20→25は約20日
+// 設計目標: 毎日450EXP（全クエスト達成時）を基準に
+//   Lv1→2: 200EXP  = 約0.5日
+//   Lv5→6: 450EXP  = 約1日
+//   Lv10→11: 800EXP = 約2日
+//   Lv20→21: 1600EXP = 約4日
+//   Lv30→31: 2500EXP = 約6日（Lv30到達に約2ヶ月）
 export function expForNextLevel(level: number): number {
-  return Math.floor(100 + level * 50 + level * level * 8);
+  return Math.floor(150 + level * 30 + level * level * 2.5);
 }
 
 export function levelFromTotalExp(totalExp: number): number {

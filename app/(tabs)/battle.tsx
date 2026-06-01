@@ -232,19 +232,27 @@ export default function BattleScreen() {
           </Text>
         </View>
 
-        {/* 次のボス予告 */}
+        {/* 次のボス予告（進捗連動） */}
         <View style={styles.nextCard}>
           <Text style={styles.nextTitle}>⏳ 今後のボス</Text>
-          {BOSSES.slice(1).map(boss => (
-            <TouchableOpacity key={boss.id} style={styles.nextItem} onPress={() => setSelectedBoss(boss)}>
-              <Text style={styles.nextEmoji}>{boss.emoji}</Text>
-              <View style={styles.nextInfo}>
-                <Text style={styles.nextName}>{boss.name}</Text>
-                <Text style={styles.nextChapter}>{boss.chapter}</Text>
-              </View>
-              <Text style={styles.nextLock}>🔒</Text>
-            </TouchableOpacity>
-          ))}
+          {BOSSES.map((boss, i) => {
+            if (i <= currentBossIndex) return null; // 現在・クリア済みは非表示
+            const isNext = i === currentBossIndex + 1;
+            return (
+              <TouchableOpacity
+                key={boss.id}
+                style={[styles.nextItem, isNext && styles.nextItemUnlocked]}
+                onPress={() => isNext && setSelectedBoss(boss)}
+              >
+                <Text style={[styles.nextEmoji, !isNext && { opacity: 0.4 }]}>{boss.emoji}</Text>
+                <View style={styles.nextInfo}>
+                  <Text style={[styles.nextName, isNext && { color: '#ccc' }]}>{boss.name}</Text>
+                  <Text style={styles.nextChapter}>{boss.chapter}{isNext ? '（次のボス）' : ''}</Text>
+                </View>
+                <Text style={styles.nextLock}>{isNext ? '⚡' : '🔒'}</Text>
+              </TouchableOpacity>
+            );
+          })}
         </View>
 
         {/* 撃破報酬 */}
@@ -357,6 +365,7 @@ const styles = StyleSheet.create({
   nextName: { fontSize: 14, fontWeight: '700', color: '#555' },
   nextChapter: { fontSize: 11, color: '#333', marginTop: 2 },
   nextLock: { fontSize: 18 },
+  nextItemUnlocked: { borderColor: '#7C3AED', borderWidth: 1, borderRadius: 8, padding: 4 },
 
   rewardCard: { marginHorizontal: 16, marginBottom: 32, backgroundColor: '#1a2a1a', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#10b981' },
   rewardTitle: { fontSize: 14, fontWeight: '800', color: '#10b981', marginBottom: 8 },

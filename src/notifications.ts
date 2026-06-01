@@ -40,8 +40,15 @@ export async function scheduleAllNotifications(): Promise<void> {
   const granted = await requestNotificationPermission();
   if (!granted) return;
 
-  // 既存の通知をキャンセル
-  await Notifications.cancelAllScheduledNotificationsAsync();
+  // 既に通知がスケジュール済みなら再設定しない（ユーザーが個別にOFFにした場合を保護）
+  const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+  const hasMorning = scheduled.some(n => n.identifier === 'morning-reminder');
+  const hasEvening = scheduled.some(n => n.identifier === 'evening-reminder');
+  if (hasMorning && hasEvening) return;
+
+  // 未設定の通知のみキャンセル後に再設定
+  if (!hasMorning) await Notifications.cancelScheduledNotificationAsync('morning-reminder').catch(() => {});
+  if (!hasEvening) await Notifications.cancelScheduledNotificationAsync('evening-reminder').catch(() => {});
 
   // 朝8時の通知（毎日）
   const morning = MORNING_MESSAGES[Math.floor(Math.random() * MORNING_MESSAGES.length)];

@@ -27,32 +27,34 @@ export default function HomeScreen() {
 
   const load = useCallback(async () => {
     if (!dbReady) return;
-    const [p, s, w, q, eq] = await Promise.all([
-      getProfile(),
-      getDailySummary(TODAY),
-      getLatestWeight(),
-      getDailyQuests(TODAY),
-      getEquippedStats(),
-    ]);
-    setProfile(p);
-    setSummary(s);
-    setLatestWeight(w?.weight_kg ?? null);
-    setQuests(q);
-    setEquippedStats(eq);
+    try {
+      const [p, s, w, q, eq] = await Promise.all([
+        getProfile().catch(() => null),
+        getDailySummary(TODAY).catch(() => null),
+        getLatestWeight().catch(() => null),
+        getDailyQuests(TODAY).catch(() => [] as Quest[]),
+        getEquippedStats().catch(() => null),
+      ]);
+      setProfile(p);
+      setSummary(s);
+      setLatestWeight(w?.weight_kg ?? null);
+      setQuests(q ?? []);
+      setEquippedStats(eq);
 
-    if (s && p) {
-      const todayMeals = await getMealsForDate(TODAY);
-      await checkAndUpdateQuests(TODAY, {
-        meals: todayMeals.map(m => ({ meal_type: m.meal_type })),
-        totalCalories: s.total_calories,
-        calorieTarget: p.daily_calorie_target,
-        totalProtein: s.total_protein_g,
-        proteinTarget: p.protein_target_g ?? 50,
-        hasWeight: w != null,
-      });
-      const updatedQ = await getDailyQuests(TODAY);
-      setQuests(updatedQ);
-    }
+      if (s && p) {
+        const todayMeals = await getMealsForDate(TODAY).catch(() => []);
+        await checkAndUpdateQuests(TODAY, {
+          meals: todayMeals.map(m => ({ meal_type: m.meal_type })),
+          totalCalories: s.total_calories,
+          calorieTarget: p.daily_calorie_target,
+          totalProtein: s.total_protein_g,
+          proteinTarget: p.protein_target_g ?? 50,
+          hasWeight: w != null,
+        }).catch(() => {});
+        const updatedQ = await getDailyQuests(TODAY).catch(() => [] as Quest[]);
+        setQuests(updatedQ ?? []);
+      }
+    } catch { /* DB未初期化など想定外エラーは無視 */ }
   }, [dbReady]);
 
   useEffect(() => {
@@ -239,6 +241,13 @@ export default function HomeScreen() {
                   <Text style={styles.goalNum}>{profile.weekly_loss_kg}</Text>
                   <Text style={styles.goalUnit}>kg/週</Text>
                   <Text style={styles.goalLabel}>目標</Text>
+                </View>
+              )}
+              {profile?.target_body_fat_pct && (
+                <View style={styles.goalItem}>
+                  <Text style={styles.goalNum}>{profile.target_body_fat_pct}</Text>
+                  <Text style={styles.goalUnit}>%</Text>
+                  <Text style={styles.goalLabel}>体脂肪目標</Text>
                 </View>
               )}
             </View>

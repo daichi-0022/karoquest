@@ -31,13 +31,18 @@ export default function InventoryScreen() {
   const [pityCount, setPityCount] = useState(0);
 
   const load = useCallback(async () => {
-    const [inv, eq, p, gs] = await Promise.all([
-      getInventory(), getEquippedStats(), getProfile(), getGachaState(),
-    ]);
-    setInventory(inv);
-    setEquipped(eq);
-    setProfile(p);
-    setPityCount(gs.pity_count);
+    try {
+      const [inv, eq, p, gs] = await Promise.all([
+        getInventory().catch(() => []),
+        getEquippedStats().catch(() => null),
+        getProfile().catch(() => null),
+        getGachaState().catch(() => ({ pity_count: 0, total_pulls: 0 })),
+      ]);
+      setInventory(inv);
+      setEquipped(eq);
+      setProfile(p);
+      setPityCount(gs?.pity_count ?? 0);
+    } catch { /* ignore */ }
   }, []);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
@@ -139,9 +144,9 @@ export default function InventoryScreen() {
         >
           <Text style={styles.gachaIcon}>🎲</Text>
           <View style={{ flex: 1 }}>
-            <Text style={styles.gachaBtnText}>{dropping ? '開封中...' : '装備ドロップ  -50 EXP'}</Text>
+            <Text style={styles.gachaBtnText}>{dropping ? '開封中...' : '装備をゲット  -50 EXP'}</Text>
             <Text style={styles.gachaBtnSub}>
-              pity: {pityCount}/60　{pityCount >= 40 ? '⚡SSR確率UP中！' : 'SSR確率UP: 40回から'}
+              食事記録でEXPを稼いで装備をドロップ！　pity: {pityCount}/60　{pityCount >= 40 ? '⚡SSR確率UP中！' : ''}
             </Text>
           </View>
           <View style={styles.expCostBadge}>
@@ -167,7 +172,7 @@ export default function InventoryScreen() {
         {/* アイテム一覧 */}
         <View style={styles.itemGrid}>
           {filteredItems.length === 0 ? (
-            <Text style={styles.emptyText}>アイテムがありません{'\n'}モンスターを倒してドロップしよう</Text>
+            <Text style={styles.emptyText}>アイテムがありません{'\n'}食事を記録してEXPを稼ぎ、装備をドロップしよう！</Text>
           ) : (
             filteredItems.map(item => {
               const colors = RARITY_COLORS[item.equipment.rarity];

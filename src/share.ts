@@ -1,5 +1,6 @@
 import { Share } from 'react-native';
 
+// App Store申請後に正式URLへ更新: https://apps.apple.com/jp/app/karoquest/idXXXXXXXX
 const APP_URL = 'https://daichi-0022.github.io/karoquest/';
 
 export async function shareLevelUp(level: number, title: string): Promise<void> {

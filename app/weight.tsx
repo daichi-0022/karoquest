@@ -135,11 +135,17 @@ export default function WeightScreen() {
             </View>
 
             {/* HealthKit placeholder */}
-            <TouchableOpacity style={styles.healthKitBtn}>
+            <TouchableOpacity
+              style={styles.healthKitBtn}
+              onPress={() => Alert.alert(
+                'Apple HealthKit 連携',
+                '次のアップデートでApple HealthKitから体重を自動取得できるようになります。\nしばらくお待ちください！'
+              )}
+            >
               <Text style={styles.healthKitIcon}>❤️</Text>
               <View>
                 <Text style={styles.healthKitText}>Apple HealthKit から取得</Text>
-                <Text style={styles.healthKitSub}>Week 2 で実装予定</Text>
+                <Text style={styles.healthKitSub}>次のアップデートで実装予定</Text>
               </View>
               <View style={styles.soonBadge}>
                 <Text style={styles.soonBadgeText}>Soon</Text>
