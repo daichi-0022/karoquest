@@ -1,5 +1,6 @@
 import { getDb, EXP_REWARDS } from './schema';
 import type { FoodAnalysisResult } from '../api/claude';
+import { checkAndUpdateQuests } from './quests';
 import 'react-native-get-random-values';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -53,23 +54,25 @@ export async function saveMeal(
     [EXP_REWARDS.MEAL_LOGGED]
   );
 
-  // 今日の目標達成チェック
-  const profile = await db.getFirstAsync<{ daily_calorie_target: number }>(
-    `SELECT daily_calorie_target FROM user_profile WHERE id = 'me'`
-  );
+  // 食事記録直後にクエスト即時判定（達成感を即座に届ける）
+  const profile = await db.getFirstAsync<{
+    daily_calorie_target: number;
+    protein_target_g: number;
+  }>(`SELECT daily_calorie_target, protein_target_g FROM user_profile WHERE id = 'me'`);
   const summary = await getDailySummary(date);
   let expGained = EXP_REWARDS.MEAL_LOGGED;
 
   if (profile && summary) {
-    const target = profile.daily_calorie_target;
-    const total = summary.total_calories;
-    if (total >= target * 0.8 && total <= target * 1.05) {
-      await db.runAsync(
-        `UPDATE user_profile SET total_exp = total_exp + ? WHERE id = 'me'`,
-        [EXP_REWARDS.DAILY_GOAL_MET]
-      );
-      expGained += EXP_REWARDS.DAILY_GOAL_MET;
-    }
+    const meals = await getMealsForDate(date);
+    const questExp = await checkAndUpdateQuests(date, {
+      meals: meals.map(m => ({ meal_type: m.meal_type })),
+      totalCalories: summary.total_calories,
+      calorieTarget: profile.daily_calorie_target,
+      totalProtein: summary.total_protein_g,
+      proteinTarget: profile.protein_target_g ?? 50,
+      hasWeight: false,
+    });
+    expGained += questExp;
   }
 
   const meal = await db.getFirstAsync<Meal>(`SELECT * FROM meals WHERE id = ?`, [id]);
