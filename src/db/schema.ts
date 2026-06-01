@@ -18,9 +18,20 @@ export async function initializeDatabase(): Promise<void> {
     CREATE TABLE IF NOT EXISTS user_profile (
       id TEXT PRIMARY KEY DEFAULT 'me',
       display_name TEXT NOT NULL DEFAULT '冒険者',
+      gender TEXT CHECK(gender IN ('male','female')) DEFAULT 'male',
+      age INTEGER DEFAULT 25,
+      height_cm REAL DEFAULT 170,
+      current_weight_kg REAL DEFAULT 70,
       target_weight_kg REAL,
+      target_body_fat_pct REAL,
       target_date TEXT,
+      weekly_loss_kg REAL DEFAULT 0.5,
+      activity_level TEXT DEFAULT 'light' CHECK(activity_level IN ('sedentary','light','moderate','active','very_active')),
       daily_calorie_target INTEGER DEFAULT 1800,
+      protein_target_g REAL DEFAULT 100,
+      fat_target_g REAL DEFAULT 60,
+      carbs_target_g REAL DEFAULT 200,
+      onboarding_done INTEGER DEFAULT 0,
       current_level INTEGER DEFAULT 1,
       total_exp INTEGER DEFAULT 0,
       created_at TEXT DEFAULT (datetime('now'))
@@ -165,9 +176,11 @@ export const EXP_REWARDS = {
   QUEST_ALL_COMPLETE: 200,
 } as const;
 
-// レベルアップに必要なEXP（レベル×200）
+// レベルアップに必要なEXP
+// 設計: Lv1→2=300, Lv5→6=600, Lv10→11=1200, Lv20→21=2800, Lv30→31=5100
+// 毎日全クエスト480EXP達成時: Lv1→5は約4日、Lv10→15は約10日、Lv20→25は約20日
 export function expForNextLevel(level: number): number {
-  return level * 200;
+  return Math.floor(100 + level * 50 + level * level * 8);
 }
 
 export function levelFromTotalExp(totalExp: number): number {

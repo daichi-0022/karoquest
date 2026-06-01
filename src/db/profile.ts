@@ -3,9 +3,20 @@ import { getDb, levelFromTotalExp, expInCurrentLevel, expForNextLevel, getTitle 
 export interface UserProfile {
   id: string;
   display_name: string;
+  gender: 'male' | 'female';
+  age: number;
+  height_cm: number;
+  current_weight_kg: number;
   target_weight_kg: number | null;
+  target_body_fat_pct: number | null;
   target_date: string | null;
+  weekly_loss_kg: number;
+  activity_level: string;
   daily_calorie_target: number;
+  protein_target_g: number;
+  fat_target_g: number;
+  carbs_target_g: number;
+  onboarding_done: number;
   current_level: number;
   total_exp: number;
 }

@@ -103,6 +103,7 @@ export async function checkAndUpdateQuests(
     totalCalories: number;
     calorieTarget: number;
     totalProtein: number;
+    proteinTarget: number;  // 体重連動タンパク質目標
     hasWeight: boolean;
   }
 ): Promise<number> {
@@ -113,11 +114,12 @@ export async function checkAndUpdateQuests(
   const hasThreeMeals = mealTypes.has('breakfast') && mealTypes.has('lunch') && mealTypes.has('dinner');
   const calorieRatio = params.calorieTarget > 0 ? params.totalCalories / params.calorieTarget : 0;
   const calorieGoalMet = calorieRatio >= 0.8 && calorieRatio <= 1.05;
+  const proteinGoal = params.proteinTarget > 0 ? params.proteinTarget : 50;
 
   if (hasBreakfast)   totalExp += await completeQuest(date, 'breakfast');
   if (hasThreeMeals)  totalExp += await completeQuest(date, 'three_meals');
   if (calorieGoalMet) totalExp += await completeQuest(date, 'calorie_goal');
-  if (params.totalProtein >= 50) totalExp += await completeQuest(date, 'protein');
+  if (params.totalProtein >= proteinGoal) totalExp += await completeQuest(date, 'protein');
   if (params.hasWeight) totalExp += await completeQuest(date, 'weight');
 
   return totalExp;

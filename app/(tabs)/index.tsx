@@ -44,6 +44,7 @@ export default function HomeScreen() {
         totalCalories: s.total_calories,
         calorieTarget: p.daily_calorie_target,
         totalProtein: s.total_protein_g,
+        proteinTarget: p.protein_target_g ?? 50,
         hasWeight: w != null,
       });
       const updatedQ = await getDailyQuests(TODAY);
@@ -71,8 +72,15 @@ export default function HomeScreen() {
   const completedQuests = quests.filter(q => q.completed).length;
   const totalQuests = quests.filter(q => q.quest_type !== 'all_complete').length;
   const level = profile?.level ?? 1;
-
   const hpColor = calorieRatio > 0.95 ? '#E74C3C' : calorieRatio > 0.7 ? '#F39C12' : '#2ECC71';
+
+  // 目標達成日数
+  const daysToGoal = profile?.target_date
+    ? Math.max(0, Math.ceil((new Date(profile.target_date).getTime() - Date.now()) / 86400000))
+    : null;
+  const weightGap = profile?.target_weight_kg && latestWeight
+    ? Math.max(0, latestWeight - profile.target_weight_kg).toFixed(1)
+    : null;
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -196,6 +204,36 @@ export default function HomeScreen() {
             </View>
           )}
         </View>
+
+        {/* 目標達成進捗カード */}
+        {(daysToGoal !== null || weightGap !== null) && (
+          <View style={styles.goalCard}>
+            <Text style={styles.goalTitle}>🏆 目標達成まで</Text>
+            <View style={styles.goalRow}>
+              {weightGap !== null && (
+                <View style={styles.goalItem}>
+                  <Text style={styles.goalNum}>{weightGap}</Text>
+                  <Text style={styles.goalUnit}>kg</Text>
+                  <Text style={styles.goalLabel}>残り</Text>
+                </View>
+              )}
+              {daysToGoal !== null && (
+                <View style={styles.goalItem}>
+                  <Text style={styles.goalNum}>{daysToGoal}</Text>
+                  <Text style={styles.goalUnit}>日</Text>
+                  <Text style={styles.goalLabel}>あと</Text>
+                </View>
+              )}
+              {profile?.weekly_loss_kg && (
+                <View style={styles.goalItem}>
+                  <Text style={styles.goalNum}>{profile.weekly_loss_kg}</Text>
+                  <Text style={styles.goalUnit}>kg/週</Text>
+                  <Text style={styles.goalLabel}>目標</Text>
+                </View>
+              )}
+            </View>
+          </View>
+        )}
 
         {/* 撮影ボタン（ドット絵ボタン風） */}
         <TouchableOpacity style={styles.pixelButton} onPress={() => router.push('/camera' as any)}>
@@ -400,5 +438,12 @@ const styles = StyleSheet.create({
   pixelCardLabel: { fontSize: 10, color: '#555', fontFamily: 'monospace' },
   pixelCardValue: { fontSize: 15, fontWeight: '900', color: '#fff', fontFamily: 'monospace', marginTop: 4 },
   pixelCardSub: { fontSize: 9, color: '#E74C3C', fontFamily: 'monospace', marginTop: 2 },
+  goalCard: { marginHorizontal: 12, marginBottom: 10, backgroundColor: '#0E0E24', borderWidth: 2, borderColor: '#F59E0B', padding: 14 },
+  goalTitle: { fontSize: 12, fontWeight: '900', color: '#F59E0B', fontFamily: 'monospace', marginBottom: 10 },
+  goalRow: { flexDirection: 'row', justifyContent: 'space-around' },
+  goalItem: { alignItems: 'center' },
+  goalNum: { fontSize: 28, fontWeight: '900', color: '#fff', fontFamily: 'monospace' },
+  goalUnit: { fontSize: 10, color: '#F59E0B', fontFamily: 'monospace' },
+  goalLabel: { fontSize: 10, color: '#555', fontFamily: 'monospace' },
   pixelCardExp: { fontSize: 10, color: '#2ECC71', fontFamily: 'monospace', marginTop: 2 },
 });
