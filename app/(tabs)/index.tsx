@@ -208,7 +208,7 @@ export default function HomeScreen() {
           </View>
         </TouchableOpacity>
 
-        {/* 体重・バトル */}
+        {/* 体重・バトル・インベントリ */}
         <View style={styles.bottomRow}>
           <TouchableOpacity style={styles.pixelCard} onPress={() => router.push('/weight' as any)}>
             <Text style={styles.pixelCardIcon}>⚖️</Text>
@@ -224,6 +224,12 @@ export default function HomeScreen() {
             <Text style={styles.pixelCardLabel}>バトル</Text>
             <Text style={styles.pixelCardValue}>第1章</Text>
             <Text style={styles.pixelCardSub}>ボス出現中</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.pixelCard} onPress={() => router.push('/inventory' as any)}>
+            <Text style={styles.pixelCardIcon}>🎒</Text>
+            <Text style={styles.pixelCardLabel}>装備</Text>
+            <Text style={styles.pixelCardValue}>インベントリ</Text>
           </TouchableOpacity>
         </View>
 
