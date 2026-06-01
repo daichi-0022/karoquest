@@ -157,6 +157,44 @@ export async function equipItem(inventoryId: string, slot: Slot): Promise<void> 
   );
 }
 
+// ガチャのpity状態を取得
+export async function getGachaState(): Promise<{ pity_count: number; total_pulls: number }> {
+  const db = getDb();
+  return await db.getFirstAsync<{ pity_count: number; total_pulls: number }>(
+    `SELECT pity_count, total_pulls FROM gacha_state WHERE id = 'me'`
+  ) ?? { pity_count: 0, total_pulls: 0 };
+}
+
+// EXPを消費してガチャを引く（1回50EXP）
+// 戻り値: null = EXP不足
+export async function tryDrop(): Promise<{ item: InventoryItem | null; expCost: number; newPity: number } | null> {
+  const db = getDb();
+  const EXP_COST = 50;
+
+  const profile = await db.getFirstAsync<{ total_exp: number }>(
+    `SELECT total_exp FROM user_profile WHERE id = 'me'`
+  );
+  if (!profile || profile.total_exp < EXP_COST) return null;
+
+  // EXP消費
+  await db.runAsync(`UPDATE user_profile SET total_exp = total_exp - ? WHERE id = 'me'`, [EXP_COST]);
+
+  // pity更新
+  const state = await getGachaState();
+  const newPity = state.pity_count + 1;
+  await db.runAsync(`UPDATE gacha_state SET pity_count = ?, total_pulls = total_pulls + 1 WHERE id = 'me'`, [newPity]);
+
+  const rarity = rollRarity(newPity);
+  const item = await dropEquipment(rarity);
+
+  // SSR以上が出たらpityリセット
+  if (rarity === 'SSR' || rarity === 'UR' || rarity === 'LR') {
+    await db.runAsync(`UPDATE gacha_state SET pity_count = 0 WHERE id = 'me'`);
+  }
+
+  return { item, expCost: EXP_COST, newPity };
+}
+
 export async function dropEquipment(rarity: Rarity): Promise<InventoryItem | null> {
   const db = getDb();
   const slots: Slot[] = ['weapon', 'head', 'body', 'legs'];

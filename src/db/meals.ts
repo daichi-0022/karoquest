@@ -63,9 +63,10 @@ export async function saveMeal(
   let expGained = EXP_REWARDS.MEAL_LOGGED;
 
   if (profile && summary) {
-    const meals = await getMealsForDate(date);
+    // INSERT後に再取得して最新の食事リストを使う
+    const allMeals = await getMealsForDate(date);
     const questExp = await checkAndUpdateQuests(date, {
-      meals: meals.map(m => ({ meal_type: m.meal_type })),
+      meals: allMeals.map(m => ({ meal_type: m.meal_type })),
       totalCalories: summary.total_calories,
       calorieTarget: profile.daily_calorie_target,
       totalProtein: summary.total_protein_g,

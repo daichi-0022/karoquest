@@ -1,10 +1,11 @@
 import { useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  SafeAreaView, TextInput, Alert, Switch,
+  SafeAreaView, TextInput, Alert, Linking,
 } from 'react-native';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, router } from 'expo-router';
 import { getProfile, updateProfile, type ProfileWithRpg } from '@/src/db/profile';
+import { getDb } from '@/src/db/schema';
 
 export default function SettingsScreen() {
   const [profile, setProfile] = useState<ProfileWithRpg | null>(null);
@@ -186,9 +187,52 @@ export default function SettingsScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>アプリ情報</Text>
           <InfoRow label="バージョン" value="1.0.0 (MVP)" />
-          <InfoRow label="プライバシーポリシー" value=">" />
-          <InfoRow label="利用規約" value=">" />
-          <InfoRow label="お問い合わせ" value="wellness.fencing.daichi@gmail.com" small />
+          <TouchableOpacity onPress={() => Linking.openURL('https://daichi-0022.github.io/karoquest/privacy.html')}>
+            <InfoRow label="プライバシーポリシー" value="›" />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => Linking.openURL('mailto:karoquest.app@gmail.com')}>
+            <InfoRow label="お問い合わせ" value="karoquest.app@gmail.com" small />
+          </TouchableOpacity>
+        </View>
+
+        {/* データ管理 */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>データ管理</Text>
+          <TouchableOpacity
+            style={styles.dangerBtn}
+            onPress={() => Alert.alert(
+              '⚠️ 全データを削除',
+              'すべての記録・装備・進捗が削除されます。この操作は取り消せません。',
+              [
+                { text: 'キャンセル', style: 'cancel' },
+                {
+                  text: '削除する', style: 'destructive',
+                  onPress: async () => {
+                    const db = getDb();
+                    await db.execAsync(`
+                      DELETE FROM meals;
+                      DELETE FROM weights;
+                      DELETE FROM evolt_scans;
+                      DELETE FROM daily_quests;
+                      DELETE FROM inventory;
+                      DELETE FROM equipped;
+                      DELETE FROM gacha_state;
+                      DELETE FROM story_progress;
+                      UPDATE user_profile SET
+                        total_exp=0, current_level=1, onboarding_done=0,
+                        target_weight_kg=NULL, target_date=NULL
+                      WHERE id='me';
+                    `);
+                    Alert.alert('削除完了', 'データを削除しました。', [
+                      { text: 'OK', onPress: () => router.replace('/onboarding') }
+                    ]);
+                  }
+                },
+              ]
+            )}
+          >
+            <Text style={styles.dangerBtnText}>🗑️ 全データを削除してリセット</Text>
+          </TouchableOpacity>
         </View>
 
         <Text style={styles.footer}>カロクエ v1.0.0 — Made with ❤️ in Japan</Text>
@@ -252,4 +296,6 @@ const styles = StyleSheet.create({
   infoValue: { fontSize: 14, color: '#666' },
   infoValueSmall: { fontSize: 11 },
   footer: { textAlign: 'center', color: '#333', fontSize: 11, paddingBottom: 40, paddingTop: 8 },
+  dangerBtn: { backgroundColor: '#1a0a0a', borderRadius: 12, padding: 16, borderWidth: 1, borderColor: '#7F1D1D', alignItems: 'center' },
+  dangerBtnText: { fontSize: 14, fontWeight: '700', color: '#EF4444' },
 });

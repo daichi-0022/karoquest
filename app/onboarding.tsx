@@ -81,8 +81,9 @@ export default function OnboardingScreen() {
   const targetWN = parseFloat(targetW) || 65;
 
   const tdee = calcTDEE(gender, ageN, heightN, weightN, activity);
-  const deficit = Math.round(weeklyLoss * 7000 / 7); // 週の赤字÷7日
-  const calorieTarget = Math.max(tdee - deficit, gender === 'male' ? 1500 : 1200);
+  const deficit = Math.round(weeklyLoss * 1000); // 1日の赤字(kcal)
+  const minCalorie = gender === 'male' ? 1500 : 1200;
+  const calorieTarget = Math.max(tdee - deficit, minCalorie);
   const { protein, fat, carbs } = calcPFC(weightN, calorieTarget);
   const targetDate = calcTargetDate(weightN, targetWN, weeklyLoss);
   const daysToGoal = targetDate

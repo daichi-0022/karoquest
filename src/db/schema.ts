@@ -104,6 +104,12 @@ export async function initializeDatabase(): Promise<void> {
       exp_reward INTEGER NOT NULL DEFAULT 0
     );
 
+    CREATE TABLE IF NOT EXISTS gacha_state (
+      id TEXT PRIMARY KEY DEFAULT 'me',
+      pity_count INTEGER DEFAULT 0,
+      total_pulls INTEGER DEFAULT 0
+    );
+
     CREATE TABLE IF NOT EXISTS story_progress (
       id TEXT PRIMARY KEY DEFAULT 'me',
       current_chapter INTEGER DEFAULT 0,
@@ -119,6 +125,7 @@ export async function initializeDatabase(): Promise<void> {
   // デフォルトプロフィール挿入
   await database.runAsync(`INSERT OR IGNORE INTO user_profile (id) VALUES ('me')`);
   await database.runAsync(`INSERT OR IGNORE INTO story_progress (id) VALUES ('me')`);
+  await database.runAsync(`INSERT OR IGNORE INTO gacha_state (id) VALUES ('me')`);
 
   // 装備マスターデータ初期挿入
   const equipmentData = [
@@ -153,13 +160,14 @@ export async function initializeDatabase(): Promise<void> {
       [id,name,slot,rarity,atk,def,hp,exp_pct,desc,icon]
     );
   }
-  // 初期装備（木の剣・布の服）をインベントリに追加
+  // 初期装備（木の剣・布の服・布のズボン）をインベントリに追加
   await database.runAsync(`INSERT OR IGNORE INTO inventory (id,equipment_id,is_new) VALUES ('init_weapon','weapon_wood_sword',0)`);
   await database.runAsync(`INSERT OR IGNORE INTO inventory (id,equipment_id,is_new) VALUES ('init_body','body_cloth',0)`);
   await database.runAsync(`INSERT OR IGNORE INTO inventory (id,equipment_id,is_new) VALUES ('init_legs','legs_cloth_pants',0)`);
+  // equipped テーブルには inventory.id を入れる（equipment_id ではない）
   await database.runAsync(`INSERT OR IGNORE INTO equipped (slot,inventory_id) VALUES ('weapon','init_weapon') ON CONFLICT(slot) DO NOTHING`);
   await database.runAsync(`INSERT OR IGNORE INTO equipped (slot,inventory_id) VALUES ('body','init_body') ON CONFLICT(slot) DO NOTHING`);
-  await database.runAsync(`INSERT OR IGNORE INTO equipped (slot,inventory_id) VALUES ('legs','legs_cloth_pants') ON CONFLICT(slot) DO NOTHING`);
+  await database.runAsync(`INSERT OR IGNORE INTO equipped (slot,inventory_id) VALUES ('legs','init_legs') ON CONFLICT(slot) DO NOTHING`);
 }
 
 // EXP計算

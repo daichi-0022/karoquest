@@ -1,11 +1,12 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  SafeAreaView, Animated, Modal, StatusBar,
+  SafeAreaView, Animated, Modal, StatusBar, Alert,
 } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { getProfile, type ProfileWithRpg } from '@/src/db/profile';
 import { getDailySummary } from '@/src/db/meals';
+import { getDb } from '@/src/db/schema';
 
 const TODAY = new Date().toISOString().split('T')[0];
 
@@ -76,6 +77,7 @@ export default function BattleScreen() {
   const [selectedBoss, setSelectedBoss] = useState<typeof BOSSES[0] | null>(null);
   const [showStory, setShowStory] = useState(false);
   const [storyIndex, setStoryIndex] = useState(0);
+  const [chapter, setChapter] = useState(0);
 
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const shakeAnim = useRef(new Animated.Value(0)).current;
@@ -98,13 +100,39 @@ export default function BattleScreen() {
       if (s && s.total_calories > 0) recorded.add(day);
     }
     setRecordedDays(recorded);
+    // ストーリー進捗を取得
+    const db = getDb();
+    const sp = await db.getFirstAsync<{ current_chapter: number }>(
+      `SELECT current_chapter FROM story_progress WHERE id = 'me'`
+    );
+    setChapter(sp?.current_chapter ?? 0);
   }, []);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
-  const currentBoss = BOSSES[0];
+  // ストーリー進捗でボスを決定
+  const currentBossIndex = Math.min(chapter, BOSSES.length - 1);
+  const currentBoss = BOSSES[currentBossIndex];
   const streak = recordedDays.size;
   const bossHp = Math.max(0, 100 - streak * 14);
+
+  // ボス撃破判定（HP0になったら次のchapterへ）
+  const handleBossDefeat = useCallback(async () => {
+    if (bossHp > 0) return;
+    Alert.alert(
+      `⚔️ ${currentBoss.name} 撃破！`,
+      `${currentBoss.reward}\n\n次の章が解放されました！`,
+      [{
+        text: '次の章へ', onPress: async () => {
+          const db = getDb();
+          await db.runAsync(
+            `UPDATE story_progress SET current_chapter = current_chapter + 1 WHERE id = 'me'`
+          );
+          await load();
+        }
+      }]
+    );
+  }, [bossHp, currentBoss, load]);
 
   const shake = () => {
     Animated.sequence([
@@ -160,9 +188,15 @@ export default function BattleScreen() {
             <Text style={styles.weaknessText}>{currentBoss.weakness}</Text>
           </View>
 
-          <View style={styles.attackHint}>
-            <Text style={styles.attackHintText}>食事を記録するたびにボスにダメージ！</Text>
-          </View>
+          {bossHp === 0 ? (
+            <TouchableOpacity style={[styles.attackHint, { backgroundColor: '#10B981' }]} onPress={handleBossDefeat}>
+              <Text style={[styles.attackHintText, { color: '#fff' }]}>🏆 ボスを撃破！タップして次の章へ！</Text>
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.attackHint}>
+              <Text style={styles.attackHintText}>食事を記録するたびにボスにダメージ！</Text>
+            </View>
+          )}
         </Animated.View>
 
         {/* 今週の戦績 */}

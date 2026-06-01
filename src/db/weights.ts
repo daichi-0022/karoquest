@@ -51,6 +51,22 @@ export async function saveWeight(
     expGained = EXP_REWARDS.WEIGHT_DECREASED;
   }
 
+  // 体重変化に応じてPFC目標を自動更新（体重×1.8gがタンパク質目標）
+  const profile = await db.getFirstAsync<{ daily_calorie_target: number; fat_target_g: number }>(
+    `SELECT daily_calorie_target, fat_target_g FROM user_profile WHERE id = 'me'`
+  );
+  if (profile) {
+    const newProtein = Math.round(weight_kg * 1.8);
+    const newCarbs   = Math.max(
+      Math.round((profile.daily_calorie_target - newProtein * 4 - profile.fat_target_g * 9) / 4),
+      50
+    );
+    await db.runAsync(
+      `UPDATE user_profile SET current_weight_kg = ?, protein_target_g = ?, carbs_target_g = ? WHERE id = 'me'`,
+      [weight_kg, newProtein, newCarbs]
+    );
+  }
+
   return { expGained };
 }
 

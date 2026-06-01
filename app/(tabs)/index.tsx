@@ -6,7 +6,7 @@ import {
 import { router, useFocusEffect } from 'expo-router';
 import { initializeDatabase } from '@/src/db/schema';
 import { getProfile, type ProfileWithRpg } from '@/src/db/profile';
-import { getDailySummary, type DailySummary } from '@/src/db/meals';
+import { getDailySummary, getMealsForDate, type DailySummary } from '@/src/db/meals';
 import { getLatestWeight } from '@/src/db/weights';
 import { getDailyQuests, checkAndUpdateQuests, type Quest } from '@/src/db/quests';
 import CGHero from '@/src/components/CGHero';
@@ -39,8 +39,9 @@ export default function HomeScreen() {
     setEquippedStats(eq);
 
     if (s && p) {
+      const todayMeals = await getMealsForDate(TODAY);
       await checkAndUpdateQuests(TODAY, {
-        meals: [],
+        meals: todayMeals.map(m => ({ meal_type: m.meal_type })),
         totalCalories: s.total_calories,
         calorieTarget: p.daily_calorie_target,
         totalProtein: s.total_protein_g,

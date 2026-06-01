@@ -6,7 +6,7 @@ import {
 import { router, useFocusEffect } from 'expo-router';
 import {
   getInventory, getEquippedStats, equipItem, markInventoryItemSeen,
-  dropEquipment, rollRarity,
+  tryDrop, getGachaState,
   type InventoryItem, type EquippedStats, type Slot, RARITY_COLORS,
 } from '@/src/db/equipment';
 import EquipmentIcon from '@/src/components/EquipmentIcon';
@@ -28,14 +28,16 @@ export default function InventoryScreen() {
   const [dropping, setDropping]   = useState(false);
   const [dropResult, setDropResult] = useState<InventoryItem | null>(null);
   const [activeTab, setActiveTab] = useState<Slot | 'all'>('all');
+  const [pityCount, setPityCount] = useState(0);
 
   const load = useCallback(async () => {
-    const [inv, eq, p] = await Promise.all([
-      getInventory(), getEquippedStats(), getProfile(),
+    const [inv, eq, p, gs] = await Promise.all([
+      getInventory(), getEquippedStats(), getProfile(), getGachaState(),
     ]);
     setInventory(inv);
     setEquipped(eq);
     setProfile(p);
+    setPityCount(gs.pity_count);
   }, []);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
@@ -49,11 +51,15 @@ export default function InventoryScreen() {
 
   const handleDrop = async () => {
     setDropping(true);
-    const rarity = rollRarity();
-    const item = await dropEquipment(rarity);
-    setDropResult(item);
+    const result = await tryDrop();
+    if (result === null) {
+      Alert.alert('EXP不足', '装備ドロップには50 EXPが必要です。\n食事を記録してEXPを貯めよう！');
+      setDropping(false);
+      return;
+    }
+    setDropResult(result.item);
     setDropping(false);
-    if (item) await load();
+    await load();
   };
 
   const filteredItems = activeTab === 'all'
@@ -132,9 +138,14 @@ export default function InventoryScreen() {
           disabled={dropping}
         >
           <Text style={styles.gachaIcon}>🎲</Text>
-          <View>
-            <Text style={styles.gachaBtnText}>{dropping ? '開封中...' : '装備をドロップ'}</Text>
-            <Text style={styles.gachaBtnSub}>モンスターを倒して装備をゲット</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.gachaBtnText}>{dropping ? '開封中...' : '装備ドロップ  -50 EXP'}</Text>
+            <Text style={styles.gachaBtnSub}>
+              pity: {pityCount}/60　{pityCount >= 40 ? '⚡SSR確率UP中！' : 'SSR確率UP: 40回から'}
+            </Text>
+          </View>
+          <View style={styles.expCostBadge}>
+            <Text style={styles.expCostText}>50{'\n'}EXP</Text>
           </View>
         </TouchableOpacity>
 
@@ -334,6 +345,8 @@ const styles = StyleSheet.create({
   gachaIcon: { fontSize: 32 },
   gachaBtnText: { fontSize: 16, fontWeight: '800', color: '#fff' },
   gachaBtnSub: { fontSize: 11, color: 'rgba(255,255,255,0.6)', marginTop: 2 },
+  expCostBadge: { backgroundColor: '#4C1D95', borderRadius: 10, padding: 8, alignItems: 'center', minWidth: 44 },
+  expCostText: { fontSize: 11, fontWeight: '900', color: '#C4B5FD', textAlign: 'center' },
 
   tabs: { flexDirection: 'row', marginHorizontal: 16, marginBottom: 12, backgroundColor: '#12122A', borderRadius: 12, padding: 4 },
   tab: { flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: 8 },
